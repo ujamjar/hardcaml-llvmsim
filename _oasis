@@ -1,0 +1,35 @@
+OASISFormat: 0.4
+Name:        hardcaml-llvmsim
+Version:     0.1
+Synopsis:    HardCaml LLVM Cycle Accurate Simulator
+Description: High speed HardCaml cycle accurate simulator using LLVM
+
+Authors:     Andy Ray
+Maintainers: Andy Ray <andy.ray@ujamjar.com>
+Homepage:    https://github.com/ujamjar/hardcaml-llvmsim
+License:     ISC
+Plugins:     META (0.4)
+BuildTools:  ocamlbuild
+
+Library HardCamlLlvmsim
+  Path:          src
+  Findlibname:   hardcaml-llvmsim
+  Pack:          true
+  Modules:       Utils, Globals, Info, Compile, Sim
+  CSources:      hcgetptr_stubs.c
+  CCOpt:         -O2 -Wall
+  BuildDepends:  hardcaml, llvm, llvm.executionengine, llvm.bitreader, llvm.bitwriter, llvm.analysis
+  XMETARequires: hardcaml, llvm, llvm.executionengine, llvm.bitreader, llvm.bitwriter, llvm.analysis
+
+Executable test
+  Path:               test
+  MainIs:             test.ml
+  Custom:             true
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       hardcaml-llvmsim
+
+SourceRepository master
+  Type:     git
+  Location: https://github.com/ujamjar/hardcaml-llvmsim.git
+  Browser:  https://github.com/ujamjar/hardcaml-llvmsim
