@@ -192,8 +192,8 @@ let compile max circuit =
   (* dump_module modl; *)
   modl
 
-(*let compile' = compile_simple*)
-let compile' = compile 100
+let compile' = compile_simple
+(*let compile' = compile 100*)
 
 let make circuit = 
   let modl = compile' circuit in
@@ -295,10 +295,10 @@ struct
     in
 
     let sim_cycle_check = sim.sim_cycle_check in
-    let sim_cycle_comb0 () = update_in_ports (); sim.sim_cycle_comb0 () in
+    let sim_cycle_comb0 () = update_in_ports (); sim.sim_cycle_comb0 (); update_out_ports () in
     let sim_cycle_seq = sim.sim_cycle_seq in
     let sim_cycle_comb1 () = sim.sim_cycle_comb1(); update_out_ports () in
-    let sim_reset () = update_in_ports (); sim.sim_reset (); update_out_ports () in
+    let sim_reset () = (*update_in_ports ();*) sim.sim_reset (); (*update_out_ports ()*) in
 
     {
       sim_internal_ports = [];
