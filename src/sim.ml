@@ -128,8 +128,13 @@ let compile_reset g_reg regs reset builder =
       ignore (Llvm.build_store v g.Globals.cur builder) 
     ) regs;
   Llvm.build_ret_void builder |> ignore;
-  Llvm_analysis.assert_valid_function reset |> ignore;
-  reset
+  Llvm_analysis.assert_valid_function reset |> ignore
+
+let call_void_fns modl name fns builder = 
+  make_function modl name void [||] (fun efn builder ->
+    List.iter (fun f -> Llvm.build_call f [||] "" builder |> ignore) fns; 
+    Llvm.build_ret_void builder |> ignore;
+    Llvm_analysis.assert_valid_function efn |> ignore)
 
 let compile_simple circuit = 
 
@@ -146,16 +151,11 @@ let compile_simple circuit =
   let reg_store = make_function modl "reg_store" void [||] (compile_reg_store g_ops regs) in
   let reg_update = make_function modl "reg_update" void [||] (compile_reg_update g_ops regs) in
 
-  let compile_cycle fn builder = 
-    Llvm.build_call comb [||] "" builder |> ignore; 
-    Llvm.build_call reg_store [||] "" builder |> ignore;
-    Llvm.build_call reg_update [||] "" builder |> ignore; 
-    Llvm.build_ret_void builder |> ignore;
-    Llvm_analysis.assert_valid_function fn |> ignore;
-  in
+  call_void_fns modl "sim_cycle_comb0" [ comb; reg_store ] builder;
+  call_void_fns modl "sim_cycle_seq" [ reg_update ] builder;
+  call_void_fns modl "sim_cycle_comb1" [ comb ] builder;
 
-  make_function modl "reset" void [||] (compile_reset g_reg regs) |> ignore;
-  make_function modl "cycle" void [||] compile_cycle;
+  make_function modl "sim_reset" void [||] (compile_reset g_reg regs);
 
   (*Llvm.dump_module modl;*)
   modl
@@ -165,45 +165,34 @@ let compile max circuit =
   let modl, g_map, g_ops, schedule, regs = compile_init circuit in
   let g_simple,g_reg,g_mem = g_ops in
 
-  let compile_cycle cycle builder = 
-
-    (* XXX moved upwards for sharing *)
-    let compile_cycle = compile_cycle modl g_ops in
-    let compile_reg_store = compile_reg_store g_ops in
-    let compile_reg_update = compile_reg_update g_ops in
-
-    let rec build name n f signals = 
-      let h,t = split max signals in
-      let r = make_function modl (name ^ "_" ^ string_of_int n) void [||] (f h) in
-      if t=[] then [r]
-      else r :: build name (n+1) f t
-    in
-
-    (* build the sub-cycle functions *)
-    let r = build "cycle" 0 compile_cycle schedule in
-
-    (* build register updates *)
-    let reg_store = build "reg_store" 0 compile_reg_store regs in
-    let reg_update = build "reg_update" 0 compile_reg_update regs in
-
-    (* sort out inter-sub-cycle dependancies *)
-    compile_cycle_deps circuit g_map r;
-
-    (* call sub-cycle functions *)
-    List.iter (fun (f,_,_,_) -> Llvm.build_call f [||] "" builder |> ignore) r;
-    (* call reg update function *)
-    List.iter (fun f -> Llvm.build_call f [||] "" builder |> ignore) reg_store; 
-    List.iter (fun f -> Llvm.build_call f [||] "" builder |> ignore) reg_update;
-    Llvm.build_ret_void builder |> ignore 
+  let rec build name n f signals = 
+    let h,t = split max signals in
+    let r = make_function modl (name ^ "_" ^ string_of_int n) void [||] (f h) in
+    if t=[] then [r]
+    else r :: build name (n+1) f t
   in
 
-  make_function modl "reset" void [||] (compile_reset g_reg regs) |> ignore;
-  make_function modl "cycle" void [||] compile_cycle;
+  (* build the sub-cycle functions *)
+  let comb = build "cycle" 0 (compile_cycle modl g_ops) schedule in
+
+  (* build register updates *)
+  let reg_store = build "reg_store" 0 (compile_reg_store g_ops) regs in
+  let reg_update = build "reg_update" 0 (compile_reg_update g_ops) regs in
+
+  (* sort out inter-sub-cycle dependancies *)
+  compile_cycle_deps circuit g_map comb;
+
+  let fcomb = List.map (fun (f,_,_,_) -> f) comb in
+  call_void_fns modl "sim_cycle_comb0" (fcomb @ reg_update) builder;
+  call_void_fns modl "sim_cycle_seq" reg_store builder;
+  call_void_fns modl "sim_cycle_comb1" fcomb builder;
+
+  make_function modl "sim_reset" void [||] (compile_reset g_reg regs) |> ignore;
 
   (* dump_module modl; *)
   modl
 
-let compile' = compile_simple
+(*let compile' = compile_simple*)
 let compile' = compile 100
 
 let make circuit = 
@@ -216,19 +205,21 @@ let make circuit =
     let f = Info.lookup_function name jit in
     (fun () -> Ee.run_function f [||] jit |> ignore) 
   in
-  let cycle = mk "cycle" in 
-  let reset = mk "reset" in
+  let sim_cycle_comb0 = mk "sim_cycle_comb0" in 
+  let sim_cycle_seq = mk "sim_cycle_seq" in 
+  let sim_cycle_comb1 = mk "sim_cycle_comb1" in 
+  let sim_reset = mk "sim_reset" in
   let in_ports = Info.query_ports "i" jit in
   let out_ports = Info.query_ports "o" jit in
   {
-    sim_cycle_comb0 = cycle;
-    sim_cycle_check = (fun () -> ());
-    sim_cycle_comb1 = (fun () -> ());
-    sim_cycle_seq = (fun () -> ());
-    sim_reset = reset;
     sim_internal_ports = [];
     sim_in_ports = in_ports;
     sim_out_ports = out_ports;
+    sim_cycle_check = (fun () -> ());
+    sim_cycle_comb0;
+    sim_cycle_seq;
+    sim_cycle_comb1;
+    sim_reset;
   }
 
 let write path circuit = 
@@ -248,24 +239,28 @@ let load path =
   let optlevel = 2 in
   let jit = Ee.create_jit modl optlevel in
   (* need to get the circuit information from the bit code *)
-  let cycle = Info.lookup_function ("cycle_" ^ name) jit in
-  let reset = Info.lookup_function ("reset_" ^ name) jit in
+  let sim_cycle_comb0 = Info.lookup_function ("sim_cycle_comb0") jit in
+  let sim_cycle_seq = Info.lookup_function ("sim_cycle_seq") jit in
+  let sim_cycle_comb1 = Info.lookup_function ("sim_cycle_comb1") jit in
+  let sim_reset = Info.lookup_function ("reset_" ^ name) jit in
 
   let in_ports = Info.query_ports "i" jit in
   let out_ports = Info.query_ports "o" jit in
 
-  let cycle = (fun () -> ignore (Ee.run_function cycle [||] jit)) in
-  let reset = (fun () -> ignore (Ee.run_function reset [||] jit)) in
+  let sim_cycle_comb0 = (fun () -> ignore (Ee.run_function sim_cycle_comb0 [||] jit)) in
+  let sim_cycle_seq = (fun () -> ignore (Ee.run_function sim_cycle_seq [||] jit)) in
+  let sim_cycle_comb1 = (fun () -> ignore (Ee.run_function sim_cycle_comb1 [||] jit)) in
+  let sim_reset = (fun () -> ignore (Ee.run_function sim_reset [||] jit)) in
 
   {
-    sim_cycle_comb0 = cycle;
-    sim_cycle_check = (fun () -> ());
-    sim_cycle_comb1 = (fun () -> ());
-    sim_cycle_seq = (fun () -> ());
-    sim_reset = reset;
     sim_internal_ports = [];
     sim_in_ports = in_ports;
     sim_out_ports = out_ports;
+    sim_cycle_check = (fun () -> ());
+    sim_cycle_comb0;
+    sim_cycle_seq;
+    sim_cycle_comb1;
+    sim_reset;
   }
 
 module Make(B : Bits_ext.S) =
@@ -277,28 +272,43 @@ struct
 
   let wrap sim = 
     let in_ports = List.map (fun (s,d) -> 
-        let d,w = fst !d, snd !d in s, (ref (B.zero w), d, w)) sim.sim_in_ports in
+      let d,w = fst !d, snd !d in s, (ref (B.zero w), d, w)) sim.sim_in_ports 
+    in
+    
     let out_ports = List.map (fun (s,d) -> 
-        let d,w = fst !d, snd !d in s, (ref (B.zero w), d, w)) sim.sim_out_ports in
-    let cycle () = 
-      List.iter (fun (s,(t,b,w)) -> B.to_bani_ptr !t b) in_ports; 
-      sim.sim_cycle_comb0();
+      let d,w = fst !d, snd !d in s, (ref (B.zero w), d, w)) sim.sim_out_ports 
+    in
+    
+    let update_in_ports () = 
+      List.iter 
+        (fun (s,(t,b,w)) ->
+          if B.width !t <> w then 
+            failwith 
+              (Printf.sprintf "input port '%s' width mismatch: expected %i got %i" 
+                s w (B.width !t))
+          else
+            B.to_bani_ptr !t b)
+        in_ports
+    in
+    let update_out_ports () = 
       List.iter (fun (s,(t,b,w)) -> t := B.of_bani_ptr w b !t) out_ports
     in
-    let reset () = 
-      List.iter (fun (s,(t,b,w)) -> B.to_bani_ptr !t b) in_ports;
-      sim.sim_reset();
-      List.iter (fun (s,(t,b,w)) -> t := B.of_bani_ptr w b !t) out_ports
-    in
+
+    let sim_cycle_check = sim.sim_cycle_check in
+    let sim_cycle_comb0 () = update_in_ports (); sim.sim_cycle_comb0 () in
+    let sim_cycle_seq = sim.sim_cycle_seq in
+    let sim_cycle_comb1 () = sim.sim_cycle_comb1(); update_out_ports () in
+    let sim_reset () = update_in_ports (); sim.sim_reset (); update_out_ports () in
+
     {
-      sim_cycle_comb0 = cycle;
-      sim_cycle_check = (fun () -> ());
-      sim_cycle_comb1 = (fun () -> ());
-      sim_cycle_seq = (fun () -> ());
-      sim_reset = reset;
       sim_internal_ports = [];
       sim_in_ports = List.map (fun (s,(t,b,w)) -> s,t) in_ports;
       sim_out_ports = List.map (fun (s,(t,b,w)) -> s,t) out_ports;
+      sim_cycle_check;
+      sim_cycle_comb0;
+      sim_cycle_seq;
+      sim_cycle_comb1;
+      sim_reset;
     }
 
   let make circuit = wrap (make circuit)
