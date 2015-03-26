@@ -20,7 +20,18 @@ let reset_value = function
     v
   | _ -> failwith "Expecting register"
 
-let compile_simple circuit = 
+let split max b = 
+  let rec split n a b = 
+    if n=max then List.rev a, b
+    else
+      match b with
+      | [] -> List.rev a,[]
+      | h::t -> split (n+1) (h::a) t
+  in
+  split 0 [] b
+
+(* initialise the compilation module *)
+let compile_init circuit = 
   let context = global_context () in
   let modl = Llvm.create_module context (Circuit.name circuit) in
 
@@ -43,129 +54,127 @@ let compile_simple circuit =
   (* initial creation of regs and mems (inputs and outputs already made) *)
   List.iter (fun s -> g_reg (Sc.width s) (uid s) |> ignore) regs;
   List.iter (fun s -> g_mem (Sc.width s) (memsize s) (uid s) |> ignore) mems;
+  
+  modl, g_map, g_ops, schedule, regs
 
-  let compile_cycle cycle builder = 
-    let l_ops = Globals.load cycle g_ops in
-    let load = Globals.load_signal l_ops in
-    let s_simple,s_reg,_ = Globals.store builder g_ops in
-    let u_reg,_ = Globals.update builder g_ops in
-    let map = Compile.compile_comb_list 
-        modl cycle builder load
-        UidMap.empty schedule 
-    in
-    let store rnd s = 
-      try s_simple (load map s) rnd s 
-      with _ -> ()
-    in
-    let store_reg instr s = s_reg instr s in
-    let update_reg s = u_reg s in
-    let return () = Llvm.build_ret_void builder |> ignore in
-    let compile_reg = Compile.compile_reg builder (load map) store_reg in
-    (* store outputs *)
-    List.iter (store true) (Circuit.outputs circuit);
-    (* sequential logic *)
-    List.iter compile_reg regs;
-    List.iter update_reg regs;
-    (* return value *)
-    return();
-    Llvm_analysis.assert_valid_function cycle |> ignore
+(* compile combinatorial signals *)
+let compile_cycle modl g_ops signals cycle builder = 
+  Llvm.set_linkage Llvm.Linkage.Internal cycle;
+  let l_ops = Globals.load cycle g_ops in
+  let load = Globals.load_signal l_ops in
+  let s_simple,s_reg,_ = Globals.store builder g_ops in
+  let map = Compile.compile_comb_list 
+      modl cycle builder load
+      UidMap.empty signals
+  in
+  let store rnd s = 
+    try s_simple (load map s) rnd s 
+    with _ -> ()
+  in
+  let return () = 
+    Llvm.build_ret_void builder |> ignore 
+  in
+  cycle, map, store, return 
+
+(* sort out inter-sub-cycle dependancies and return from the functions *)
+let compile_cycle_deps circuit g_map r = 
+  let is_input = 
+    let set = List.fold_left (fun m s -> UidSet.add (uid s) m)
+        UidSet.empty (Circuit.inputs circuit) in
+    (fun u -> UidSet.mem u set)
+  in
+  List.iter (fun (_,m,store,_) ->
+      UidMap.iter (fun u _ ->
+          let s = Circuit.signal_of_uid circuit u in
+          let find u = 
+            try UidMap.find u !g_map |> ignore; true
+            with _ -> false
+          in
+          if (find u) &&
+              (not (is_input u)) && 
+              (not (is_reg s)) && 
+              (not (is_mem s)) then
+            store false s
+        ) m
+  ) r;
+  List.iter (fun (_,_,_,r) -> r()) r
+
+(* compile register store *)
+let compile_reg_store g_ops signals cycle builder = 
+  Llvm.set_linkage Llvm.Linkage.Internal cycle;
+  let l_ops = Globals.load cycle g_ops in
+  let load = Globals.load_signal l_ops in
+  let _,s_reg,_ = Globals.store builder g_ops in
+  let compile_reg = Compile.compile_reg builder 
+      (load UidMap.empty) s_reg in
+  List.iter compile_reg signals;
+  Llvm.build_ret_void builder |> ignore;
+  cycle
+
+(* compile register update *)
+let compile_reg_update g_ops signals upd builder = 
+  Llvm.set_linkage Llvm.Linkage.Internal upd;
+  let u_reg,_ = Globals.update builder g_ops in
+  List.iter u_reg signals;
+  Llvm.build_ret_void builder |> ignore;
+  Llvm_analysis.assert_valid_function upd |> ignore;
+  upd
+
+(* compile register reset *)
+let compile_reset g_reg regs reset builder = 
+  List.iter (fun s ->
+      let v = reset_value s in
+      let g = g_reg (Sc.width s) (uid s) in
+      ignore (Llvm.build_store v g.Globals.cur builder) 
+    ) regs;
+  Llvm.build_ret_void builder |> ignore;
+  Llvm_analysis.assert_valid_function reset |> ignore;
+  reset
+
+let compile_simple circuit = 
+
+  let modl, g_map, g_ops, schedule, regs = compile_init circuit in
+  let g_simple,g_reg,g_mem = g_ops in
+
+  let compile_cycle fn builder = 
+    let fn,map,store,return = compile_cycle modl g_ops schedule fn builder in 
+    compile_cycle_deps circuit g_map [(fn,map,store,return)];
+    fn
   in
 
-  let compile_reset reset builder = 
-    List.iter (fun s ->
-        let v = reset_value s in
-        let g = g_reg (Sc.width s) (uid s) in
-        ignore (Llvm.build_store v g.Globals.cur builder) 
-      ) regs;
+  let comb = make_function modl "cycle_comb" void [||] compile_cycle in
+  let reg_store = make_function modl "reg_store" void [||] (compile_reg_store g_ops regs) in
+  let reg_update = make_function modl "reg_update" void [||] (compile_reg_update g_ops regs) in
+
+  let compile_cycle fn builder = 
+    Llvm.build_call comb [||] "" builder |> ignore; 
+    Llvm.build_call reg_store [||] "" builder |> ignore;
+    Llvm.build_call reg_update [||] "" builder |> ignore; 
     Llvm.build_ret_void builder |> ignore;
-    Llvm_analysis.assert_valid_function reset |> ignore
+    Llvm_analysis.assert_valid_function fn |> ignore;
   in
 
-  make_function modl "reset" void [||] compile_reset;
+  make_function modl "reset" void [||] (compile_reset g_reg regs) |> ignore;
   make_function modl "cycle" void [||] compile_cycle;
 
-  (* dump_module modl;*)
+  (*Llvm.dump_module modl;*)
   modl
 
 let compile max circuit = 
 
-  let context = global_context () in
-  let modl = Llvm.create_module context (Circuit.name circuit) in
-
-  let g_map,g_ops = Globals.globals modl in
+  let modl, g_map, g_ops, schedule, regs = compile_init circuit in
   let g_simple,g_reg,g_mem = g_ops in
-
-  (* information gathering *)
-  Info.compile_width modl "i" (Circuit.inputs circuit);
-  Info.compile_width modl "o" (Circuit.outputs circuit);
-  Info.compile_name modl "i" (Circuit.inputs circuit);
-  Info.compile_name modl "o" (Circuit.outputs circuit);
-  Info.compile_ptr (g_simple true) modl "i" (Circuit.inputs circuit);
-  Info.compile_ptr (g_simple true) modl "o" (Circuit.outputs circuit);
-
-  (* scheduler *)
-  let regs, mems, consts, inputs, remaining = Cs.find_elements circuit in
-  let ready = regs @ mems @ inputs @ consts in
-  let schedule = Cs.scheduler deps remaining ready in
-
-  (* initial creation of regs and mems (inputs and outputs already made) *)
-  List.iter (fun s -> g_reg (Sc.width s) (uid s) |> ignore) regs;
-  List.iter (fun s -> g_mem (Sc.width s) (memsize s) (uid s) |> ignore) mems;
 
   let compile_cycle cycle builder = 
 
-    let compile_cycle signals cycle builder = 
-      Llvm.set_linkage Llvm.Linkage.Internal cycle;
-      let l_ops = Globals.load cycle g_ops in
-      let load = Globals.load_signal l_ops in
-      let s_simple,s_reg,_ = Globals.store builder g_ops in
-      let map = Compile.compile_comb_list 
-          modl cycle builder load
-          UidMap.empty signals
-      in
-      let store rnd s = 
-        try s_simple (load map s) rnd s 
-        with _ -> ()
-      in
-      let return () = Llvm.build_ret_void builder |> ignore in
-      cycle, map, store, return 
-    in
-
-    let compile_reg_store signals cycle builder = 
-      Llvm.set_linkage Llvm.Linkage.Internal cycle;
-      let l_ops = Globals.load cycle g_ops in
-      let load = Globals.load_signal l_ops in
-      let _,s_reg,_ = Globals.store builder g_ops in
-      let compile_reg = Compile.compile_reg builder 
-          (load UidMap.empty) s_reg in
-      List.iter compile_reg signals;
-      Llvm.build_ret_void builder |> ignore;
-      cycle
-    in
-
-    let compile_reg_update signals cycle builder = 
-      Llvm.set_linkage Llvm.Linkage.Internal cycle;
-      let u_reg,_ = Globals.update builder g_ops in
-      List.iter u_reg signals;
-      Llvm.build_ret_void builder |> ignore;
-      cycle
-    in
+    (* XXX moved upwards for sharing *)
+    let compile_cycle = compile_cycle modl g_ops in
+    let compile_reg_store = compile_reg_store g_ops in
+    let compile_reg_update = compile_reg_update g_ops in
 
     let rec build name n f signals = 
-      let rec split n a b = 
-        if n=max then List.rev a, b
-        else
-          match b with
-          | [] -> List.rev a,[]
-          | h::t -> split (n+1) (h::a) t
-      in
-      let split = split 0 [] in
-      let h,t = split signals in
-      let r = 
-        make_function modl 
-          (name ^ "_" ^ string_of_int n) void [||]
-          (f h)
-      in
+      let h,t = split max signals in
+      let r = make_function modl (name ^ "_" ^ string_of_int n) void [||] (f h) in
       if t=[] then [r]
       else r :: build name (n+1) f t
     in
@@ -178,26 +187,7 @@ let compile max circuit =
     let reg_update = build "reg_update" 0 compile_reg_update regs in
 
     (* sort out inter-sub-cycle dependancies *)
-    let is_input = 
-      let set = List.fold_left (fun m s -> UidSet.add (uid s) m)
-          UidSet.empty (Circuit.inputs circuit) in
-      (fun u -> UidSet.mem u set)
-    in
-    List.iter (fun (_,m,store,_) ->
-        UidMap.iter (fun u _ ->
-            let s = Circuit.signal_of_uid circuit u in
-            let find u = 
-              try UidMap.find u !g_map |> ignore; true
-              with _ -> false
-            in
-            if (find u) &&
-               (not (is_input u)) && 
-               (not (is_reg s)) && 
-               (not (is_mem s)) then
-              store false s
-          ) m
-      ) r;
-    List.iter (fun (_,_,_,r) -> r()) r;
+    compile_cycle_deps circuit g_map r;
 
     (* call sub-cycle functions *)
     List.iter (fun (f,_,_,_) -> Llvm.build_call f [||] "" builder |> ignore) r;
@@ -207,25 +197,17 @@ let compile max circuit =
     Llvm.build_ret_void builder |> ignore 
   in
 
-  let compile_reset reset builder = 
-    List.iter (fun s ->
-        let v = reset_value s in
-        let g = g_reg (Sc.width s) (uid s) in
-        ignore (Llvm.build_store v g.Globals.cur builder) 
-      ) regs;
-    Llvm.build_ret_void builder |> ignore;
-    Llvm_analysis.assert_valid_function reset |> ignore
-  in
-
-  make_function modl "reset" void [||] compile_reset;
+  make_function modl "reset" void [||] (compile_reset g_reg regs) |> ignore;
   make_function modl "cycle" void [||] compile_cycle;
 
   (* dump_module modl; *)
   modl
 
+let compile' = compile_simple
+let compile' = compile 100
 
 let make circuit = 
-  let modl = compile 100 circuit in
+  let modl = compile' circuit in
   (*let mp = ModuleProvider.create modl in
     let jit = Ee.create_jit mp in*)
   let optlevel = 2 in
@@ -250,7 +232,7 @@ let make circuit =
   }
 
 let write path circuit = 
-  let modl = compile 100 circuit in
+  let modl = compile' circuit in
   (* write bitcode *)
   let fname = Filename.concat path (Circuit.name circuit ^ ".bc") in
   if not (Llvm_bitwriter.write_bitcode_file modl fname) then

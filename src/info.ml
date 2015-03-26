@@ -18,8 +18,8 @@ let compile_info modl name (ret,retz) args f values =
          (s, i+1)
        in
        let d,_ = List.fold_left comparer (retz, 0) values in
-       ignore (build_ret d builder)
-    )
+       build_ret d builder
+    ) |> ignore
 
 
 (* get width of an IO signal *)
