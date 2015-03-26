@@ -57,6 +57,18 @@ let compile_init circuit =
   
   modl, g_map, g_ops, schedule, regs
 
+(*let puts modl = 
+  let ft = Llvm.function_type void [| ptr_type 1 int8 |] in
+  let f = 
+    match Llvm.lookup_function "puts" modl with
+    | Some(f) -> f
+    | None -> Llvm.declare_function "puts" ft modl 
+  in
+  (fun builder s ->
+    let x = Llvm.define_global "debug" (Llvm.const_stringz (global_context()) s) modl in
+    let x = Llvm.build_gep x [|zero32; zero32|] "" builder in
+    Llvm.build_call f [|x|] "" builder)*)
+
 (* compile combinatorial signals *)
 let compile_cycle modl g_ops signals cycle builder = 
   Llvm.set_linkage Llvm.Linkage.Internal cycle;
@@ -72,7 +84,8 @@ let compile_cycle modl g_ops signals cycle builder =
     with _ -> ()
   in
   let return () = 
-    Llvm.build_ret_void builder |> ignore 
+    Llvm.build_ret_void builder |> ignore;
+    Llvm_analysis.assert_valid_function cycle |> ignore;
   in
   cycle, map, store, return 
 
@@ -147,9 +160,9 @@ let compile_simple circuit =
     fn
   in
 
-  let comb = make_function modl "cycle_comb" void [||] compile_cycle in
   let reg_store = make_function modl "reg_store" void [||] (compile_reg_store g_ops regs) in
   let reg_update = make_function modl "reg_update" void [||] (compile_reg_update g_ops regs) in
+  let comb = make_function modl "cycle_comb" void [||] compile_cycle in
 
   call_void_fns modl "sim_cycle_comb0" [ comb; reg_store ] builder;
   call_void_fns modl "sim_cycle_seq" [ reg_update ] builder;
@@ -183,8 +196,8 @@ let compile max circuit =
   compile_cycle_deps circuit g_map comb;
 
   let fcomb = List.map (fun (f,_,_,_) -> f) comb in
-  call_void_fns modl "sim_cycle_comb0" (fcomb @ reg_update) builder;
-  call_void_fns modl "sim_cycle_seq" reg_store builder;
+  call_void_fns modl "sim_cycle_comb0" (fcomb @ reg_store) builder;
+  call_void_fns modl "sim_cycle_seq" reg_update builder;
   call_void_fns modl "sim_cycle_comb1" fcomb builder;
 
   make_function modl "sim_reset" void [||] (compile_reset g_reg regs) |> ignore;
@@ -192,8 +205,8 @@ let compile max circuit =
   (* dump_module modl; *)
   modl
 
-let compile' = compile_simple
-(*let compile' = compile 100*)
+(*let compile' = compile_simple*)
+let compile' = compile 50
 
 let make circuit = 
   let modl = compile' circuit in

@@ -27,7 +27,7 @@ Executable test
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       hardcaml-llvmsim
+  BuildDepends:       hardcaml-llvmsim, hardcaml-waveterm.lterm
 
 SourceRepository master
   Type:     git

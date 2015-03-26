@@ -5,3 +5,6 @@ B _build/test
 PKG hardcaml
 PKG llvm
 PKG llvm.executionengine
+PKG hardcaml-waveterm
+PKG hardcaml-waveterm.lterm
+PKG lwt

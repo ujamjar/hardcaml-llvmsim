@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 96569903975d400d33abde6a9a704945)
+# DO NOT EDIT (digest: 87ddff15bf93996ad4cbfb1a4b6e96a3)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -38,6 +38,7 @@ true: annot, bin_annot
 "src/hcgetptr_stubs.c": pkg_llvm.executionengine
 # Executable test
 <test/test.{native,byte}>: pkg_hardcaml
+<test/test.{native,byte}>: pkg_hardcaml-waveterm.lterm
 <test/test.{native,byte}>: pkg_llvm
 <test/test.{native,byte}>: pkg_llvm.analysis
 <test/test.{native,byte}>: pkg_llvm.bitreader
@@ -45,6 +46,7 @@ true: annot, bin_annot
 <test/test.{native,byte}>: pkg_llvm.executionengine
 <test/test.{native,byte}>: use_HardCamlLlvmsim
 <test/*.ml{,i,y}>: pkg_hardcaml
+<test/*.ml{,i,y}>: pkg_hardcaml-waveterm.lterm
 <test/*.ml{,i,y}>: pkg_llvm
 <test/*.ml{,i,y}>: pkg_llvm.analysis
 <test/*.ml{,i,y}>: pkg_llvm.bitreader
