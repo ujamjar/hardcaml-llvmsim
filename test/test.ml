@@ -7,6 +7,8 @@ module Waveterm_waves = HardCamlWaveTerm.Wave.Make(HardCamlWaveTerm.Wave.Bits(B)
 module Waveterm_sim = HardCamlWaveTerm.Sim.Make(B)(Waveterm_waves)
 module Waveterm_ui = HardCamlWaveLTerm.Ui.Make(B)(Waveterm_waves)
 
+(*let () = HardCamlLlvmsim.Sim.test_bb()*)
+
 (* llvmsim test *)
 let test = 
   let open HardCaml.Signal.Comb in

@@ -29,11 +29,18 @@ val zero8 : Llvm.llvalue
 val build_uresize : Llvm.llvalue -> int -> int -> string -> Llvm.llbuilder -> Llvm.llvalue
 val make_switch : int -> Llvm.llvalue -> Llvm.llbasicblock list -> Llvm.llbuilder -> unit
 val append_block : string -> Llvm.llvalue -> Llvm.llbasicblock 
+
+type 'a func = 
+  {
+    func : Llvm.llvalue;
+    builder : Llvm.llbuilder;
+    in_entry : (Llvm.llbuilder -> 'a) -> 'a;
+  }
+
 val make_function : 
   Llvm.llmodule -> string -> 
   Llvm.lltype -> Llvm.lltype array -> 
-  (Llvm.llvalue -> Llvm.llbuilder -> 'a) ->
-  'a
+  ('b func -> 'a) -> 'a
 
 val name : string -> St.signal -> string
 val memsize : St.signal -> int

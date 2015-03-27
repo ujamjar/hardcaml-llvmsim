@@ -31,3 +31,6 @@ sig
   val load : string -> B.t Cyclesim.Api.cyclesim
 end
 
+(*val test_bb : unit -> unit*)
+
+

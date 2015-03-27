@@ -10,15 +10,15 @@ let _ = ignore (Llvm_executionengine.initialize_native_target ())
 
 let compile_info modl name (ret,retz) args f values = 
   make_function modl name ret args
-    (fun fn builder ->
-       let arg = (params fn).(0) in
+    (fun fn ->
+       let arg = (params fn.func).(0) in
        let comparer (d,i) v = 
-         let cmp = build_icmp Icmp.Eq (const_int 32 i) arg "cmp" builder in 
-         let s = build_select cmp (f fn builder v) d "sel" builder in
+         let cmp = build_icmp Icmp.Eq (const_int 32 i) arg "cmp" fn.builder in 
+         let s = build_select cmp (f fn.func fn.builder v) d "sel" fn.builder in
          (s, i+1)
        in
        let d,_ = List.fold_left comparer (retz, 0) values in
-       build_ret d builder
+       build_ret d fn.builder
     ) |> ignore
 
 

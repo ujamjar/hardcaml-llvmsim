@@ -23,7 +23,7 @@ type load_reg = signal -> llvalue
 type load_mem = llvalue -> signal -> llvalue
 type load_fns = load_simple * load_reg * load_mem
 
-val load : llvalue -> global_fns -> load_fns
+val load : llvalue Utils.func -> global_fns -> load_fns
 
 type store_simple = llvalue -> bool -> signal -> unit
 type store_reg = llvalue -> signal -> unit

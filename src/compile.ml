@@ -190,7 +190,6 @@ let compile_reg builder load store signal =
   let name n = name n signal in
   let width = Sc.width signal in
   let src = dep 0 in (* input data *)
-  (*let cur_q = UidMap.find (uid signal) reg_globals_loaded in*)
   let cur_q = instr signal in
   let clr, clr_level, clr_value = 
     if r.reg_clear <> Sc.empty then
@@ -199,18 +198,10 @@ let compile_reg builder load store signal =
       const_int 1 0, const_int 1 1, const_int width 0
   in
   let clr = build_icmp Icmp.Eq clr clr_level (name "reg_clr") builder in
-  let ena = 
-    if r.reg_enable <> Sc.empty then instr r.reg_enable
-    else const_int 1 1
-  in
-  let ena = build_and ena 
-      (build_not clr (name "reg_clr_not") builder) 
-      (name "reg_ena") builder in
-  let q = build_select clr clr_value cur_q 
-      (name "reg_clr_update") builder in
-  let q = build_select ena src q 
-      (name "reg_ena_update") builder in
-  (*let (d,w,w') = UidMap.find (uid signal) l.reg_globals in*)
+  let ena = if r.reg_enable <> Sc.empty then instr r.reg_enable else const_int 1 1 in
+  let ena = build_and ena (build_not clr (name "reg_clr_not") builder) (name "reg_ena") builder in
+  let q = build_select clr clr_value cur_q (name "reg_clr_update") builder in
+  let q = build_select ena src q (name "reg_ena_update") builder in
   store q signal
 
 (* let compile_mem *)

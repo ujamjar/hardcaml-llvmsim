@@ -116,29 +116,27 @@ let globals modl =
 
 
 let load fn (simple,reg,mem) = 
-  let entry_bb () = builder_at (global_context()) 
-      (instr_begin (entry_block fn)) in
   let load_simple port s = 
-    let builder = entry_bb () in
-    let name = name "sload" s in
-    let g = simple port (Sc.width s) (uid s) in 
-    let x = build_load g.cur name builder in
-    if g.width = g.rnd_width then x
-    else build_trunc x (int_type g.width) name builder
+    fn.in_entry (fun builder ->
+      let name = name "sload" s in
+      let g = simple port (Sc.width s) (uid s) in 
+      let x = build_load g.cur name builder in
+      if g.width = g.rnd_width then x
+      else build_trunc x (int_type g.width) name builder)
   in
   let load_reg s = 
-    let builder = entry_bb () in
-    let name = name "rload" s in
-    let g = reg (Sc.width s) (uid s) in 
-    let x = build_load g.cur name builder in
-    build_uresize x g.rnd_width g.width name builder
+    fn.in_entry (fun builder ->
+      let name = name "rload" s in
+      let g = reg (Sc.width s) (uid s) in 
+      let x = build_load g.cur name builder in
+      build_uresize x g.rnd_width g.width name builder)
   in
   let load_mem addr s = 
-    let builder = entry_bb () in
-    let name = name "mload" s in
-    let g = mem (Sc.width s) (memsize s) (uid s) in
-    let addr = build_gep g.cur [| zero32; addr |] "" builder in
-    build_load addr name builder
+    fn.in_entry (fun builder ->
+      let name = name "mload" s in
+      let g = mem (Sc.width s) (memsize s) (uid s) in
+      let addr = build_gep g.cur [| zero32; addr |] "" builder in
+      build_load addr name builder)
   in
   let globals = ref UidMap.empty in
   let memoize f s = 

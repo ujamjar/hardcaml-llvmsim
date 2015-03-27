@@ -59,14 +59,31 @@ let make_switch width_sel' sel cases builder =
 let builder() = builder (global_context())
 let append_block name f = append_block (global_context()) name f
 
+type 'a func =
+  {
+    func : llvalue;
+    builder : llbuilder;
+    in_entry : (llbuilder -> 'a) -> 'a;
+  }
+
 (* build a function with the given argument and return types *)
 let make_function modl name returns args f = 
   let builder = builder () in
   let fn_type = function_type returns args in
   let fn = declare_function name fn_type modl in
-  let bb = append_block "entry" fn in
-  position_at_end bb builder;
-  f fn builder
+  let bbe = append_block "entry" fn in
+  let bbb = append_block "body" fn in
+  position_at_end bbe builder;
+  let jmp = build_br bbb builder in
+  position_at_end bbb builder;
+  let in_entry f = 
+    let bbp = insertion_block builder in
+    let () = position_before jmp builder in
+    let r = f builder in
+    position_at_end bbp builder;
+    r
+  in
+  f {func=fn; builder; in_entry}
 
 let name n s = n ^ "_" ^ Int64.to_string (St.uid s) ^ "_s"
 let memsize = function St.Signal_mem(_,_,_,m) -> m.St.mem_size | _ -> 0 
@@ -82,3 +99,16 @@ let split n l =
   in
   let a,b = split n [] l in
   List.rev a, b
+
+let puts modl = 
+  let ft = Llvm.function_type void [| ptr_type 1 int8 |] in
+  let f = 
+    match Llvm.lookup_function "puts" modl with
+    | Some(f) -> f
+    | None -> Llvm.declare_function "puts" ft modl 
+  in
+  (fun builder s ->
+    let x = Llvm.define_global "debug" (Llvm.const_stringz (global_context()) s) modl in
+    let x = Llvm.build_gep x [|zero32; zero32|] "" builder in
+    Llvm.build_call f [|x|] "" builder)
+
