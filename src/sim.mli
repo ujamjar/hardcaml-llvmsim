@@ -6,7 +6,7 @@ type cyclesim = Bits_ext.Comb.BigarraybitsNativeint.t Cyclesim.Api.cyclesim
 
 val reset_value : St.signal -> Llvm.llvalue
 
-val compile_simple : Circuit.t -> Llvm.llmodule
+(*val compile_simple : Circuit.t -> Llvm.llmodule*)
 
 val compile : int -> Circuit.t -> Llvm.llmodule
 

@@ -186,7 +186,57 @@ let update builder (simple,reg,mem) =
   in
   update_reg, update_mem
 
-let rec load_signal (s,r,m) map signal = 
+type globals = 
+  {
+    gmap : global UidMap.t ref;
+    gsimple : global_simple;
+    greg : global_reg;
+    gmem : global_mem;
+    fscope : llvalue Utils.func -> func;
+  }
+
+and func = 
+  {
+    loads : loads;
+    stores : stores;
+    updates : updates;
+  }
+
+and loads = 
+  {
+    lsimple : load_simple;
+    lreg : load_reg;
+    lmem : load_mem;
+  }
+
+and stores = 
+  {
+    ssimple : store_simple;
+    sreg : store_reg;
+    smem : store_mem;
+  }
+
+and updates = 
+  {
+    ureg : update_reg;
+    umem : update_mem;
+  }
+
+let global_fns modl = 
+  let (gmap,((gsimple,greg,gmem) as gops))  = globals modl in
+  let fscope fn = 
+    let lsimple, lreg, lmem = load fn gops in
+    let ssimple, sreg, smem = store fn.builder gops in
+    let ureg, umem = update fn.builder gops in
+    {
+      loads = { lsimple; lreg; lmem };
+      stores = { ssimple; sreg; smem };
+      updates = { ureg; umem };
+    }
+  in
+  { gmap; gsimple; greg; gmem; fscope }
+
+let rec load_signal gfn map signal = 
   match signal with
   | Signal_const(_) -> const_of_signal signal
   | _ ->
@@ -195,9 +245,9 @@ let rec load_signal (s,r,m) map signal =
       with _ ->
         begin
           match signal with
-          | Signal_reg(_) -> r signal
-          | Signal_mem(_,_,_,x) -> 
-            m (load_signal (s,r,m) map x.mem_read_address) signal
-          | _ -> s false signal
+          | Signal_reg(_) -> gfn.loads.lreg signal
+          | Signal_mem(_,_,_,x) -> gfn.loads.lmem (load_signal gfn map x.mem_read_address) signal
+          | _ -> gfn.loads.lsimple false signal
         end
     end
+

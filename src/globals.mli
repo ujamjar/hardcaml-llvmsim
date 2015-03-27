@@ -14,29 +14,55 @@ type global =
 type global_simple = bool -> int -> uid -> global
 type global_reg = int -> uid -> global
 type global_mem = int -> int -> uid -> global
-type global_fns = global_simple * global_reg * global_mem
-
-val globals : llmodule -> global UidMap.t ref * global_fns
 
 type load_simple = bool -> signal -> llvalue
 type load_reg = signal -> llvalue
 type load_mem = llvalue -> signal -> llvalue
-type load_fns = load_simple * load_reg * load_mem
-
-val load : llvalue Utils.func -> global_fns -> load_fns
 
 type store_simple = llvalue -> bool -> signal -> unit
 type store_reg = llvalue -> signal -> unit
 type store_mem = llvalue -> signal -> unit
-type store_fns = store_simple * store_reg * store_mem
-
-val store : llbuilder -> global_fns -> store_fns
 
 type update_reg = signal -> unit
 type update_mem = llvalue -> signal -> unit
-type update_fns = update_reg * update_mem
 
-val update : llbuilder -> global_fns -> update_fns
+type globals = 
+  {
+    gmap : global UidMap.t ref;
+    gsimple : global_simple;
+    greg : global_reg;
+    gmem : global_mem;
+    fscope : llvalue Utils.func -> func;
+  }
 
-val load_signal : load_fns -> llvalue UidMap.t -> signal -> llvalue
+and func = 
+  {
+    loads : loads;
+    stores : stores;
+    updates : updates;
+  }
+
+and loads = 
+  {
+    lsimple : load_simple;
+    lreg : load_reg;
+    lmem : load_mem;
+  }
+
+and stores = 
+  {
+    ssimple : store_simple;
+    sreg : store_reg;
+    smem : store_mem;
+  }
+
+and updates = 
+  {
+    ureg : update_reg;
+    umem : update_mem;
+  }
+
+val global_fns : Llvm.llmodule -> globals
+
+val load_signal : func -> llvalue UidMap.t -> signal -> llvalue
 

@@ -1,4 +1,5 @@
 open Utils
+open Globals
 
 open HardCaml
 open Signal.Types
@@ -9,6 +10,8 @@ module Cs = Cyclesim
 
 module Ee = Llvm_executionengine.ExecutionEngine
 module Gv = Llvm_executionengine.GenericValue
+
+let debug = false
 
 type cyclesim = Bits_ext.Comb.BigarraybitsNativeint.t Cyclesim.Api.cyclesim
 
@@ -35,16 +38,15 @@ let compile_init circuit =
   let context = global_context () in
   let modl = Llvm.create_module context (Circuit.name circuit) in
 
-  let g_map,g_ops = Globals.globals modl in
-  let g_simple,g_reg,g_mem = g_ops in
+  let gfn = Globals.global_fns modl in
 
   (* information gathering *)
   Info.compile_width modl "i" (Circuit.inputs circuit);
   Info.compile_width modl "o" (Circuit.outputs circuit);
   Info.compile_name modl "i" (Circuit.inputs circuit);
   Info.compile_name modl "o" (Circuit.outputs circuit);
-  Info.compile_ptr (g_simple true) modl "i" (Circuit.inputs circuit);
-  Info.compile_ptr (g_simple true) modl "o" (Circuit.outputs circuit);
+  Info.compile_ptr (gfn.gsimple true) modl "i" (Circuit.inputs circuit);
+  Info.compile_ptr (gfn.gsimple true) modl "o" (Circuit.outputs circuit);
 
   (* scheduler *)
   let regs, mems, consts, inputs, remaining = Cs.find_elements circuit in
@@ -52,25 +54,23 @@ let compile_init circuit =
   let schedule = Cs.scheduler deps remaining ready in
 
   (* initial creation of regs and mems (inputs and outputs already made) *)
-  List.iter (fun s -> g_reg (Sc.width s) (uid s) |> ignore) regs;
-  List.iter (fun s -> g_mem (Sc.width s) (memsize s) (uid s) |> ignore) mems;
+  List.iter (fun s -> gfn.greg (Sc.width s) (uid s) |> ignore) regs;
+  List.iter (fun s -> gfn.gmem (Sc.width s) (memsize s) (uid s) |> ignore) mems;
   
-  modl, g_map, g_ops, schedule, regs, mems
+  modl, gfn, schedule, regs, mems
 
 (* compile combinatorial signals *)
-let compile_cycle modl g_ops signals fn = 
-  List.iter (fun s -> Printf.printf "sig=%s\n" (to_string s)) signals;
+let compile_cycle modl gfn signals fn = 
+  (if debug then List.iter (fun s -> Printf.printf "sig=%s\n" (to_string s)) signals);
 
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
-  let l_ops = Globals.load fn g_ops in
-  let load = Globals.load_signal l_ops in
-  let s_simple,_,_ = Globals.store fn.builder g_ops in
+  let gfn = gfn.fscope fn in
   let map = Compile.compile_comb_list 
-      modl fn.func fn.builder load
+      modl fn.func fn.builder (load_signal gfn)
       UidMap.empty signals
   in
   let store rnd s = 
-    try s_simple (load map s) rnd s 
+    try gfn.stores.ssimple (load_signal gfn map s) rnd s 
     with _ -> ()
   in
   let return () = 
@@ -103,31 +103,51 @@ let compile_cycle_deps circuit g_map r =
   List.iter (fun (_,_,_,r) -> r()) r
 
 (* compile register store *)
-let compile_reg_store g_ops signals fn = 
+let compile_reg_store gfn signals fn = 
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
-  let l_ops = Globals.load fn g_ops in
-  let load = Globals.load_signal l_ops in
-  let _,s_reg,_ = Globals.store fn.builder g_ops in
-  let compile_reg = Compile.compile_reg fn.builder 
-      (load UidMap.empty) s_reg in
+  let gfn = gfn.fscope fn in
+  let load = Globals.load_signal gfn in
+  let store = gfn.stores.sreg in
+  let compile_reg = Compile.compile_reg fn.builder (load UidMap.empty) store in
   List.iter compile_reg signals;
   Llvm.build_ret_void fn.builder |> ignore;
   fn.func
 
-(* compile register update *)
-let compile_reg_update g_ops signals fn = 
+(* compile memory store *)
+let compile_mem_store gfn signals fn = 
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
-  let u_reg,_ = Globals.update fn.builder g_ops in
+  let gfn = gfn.fscope fn in
+  let load = load_signal gfn in
+  let store = gfn.stores.smem in
+  let compile_mem = Compile.compile_mem fn.builder (load UidMap.empty) store in
+  List.iter compile_mem signals;
+  Llvm.build_ret_void fn.builder |> ignore;
+  fn.func
+
+(* compile register update *)
+let compile_reg_update gfn signals fn = 
+  Llvm.set_linkage Llvm.Linkage.Internal fn.func;
+  let u_reg = (gfn.fscope fn).updates.ureg in
   List.iter u_reg signals;
   Llvm.build_ret_void fn.builder |> ignore;
   Llvm_analysis.assert_valid_function fn.func |> ignore;
   fn.func
 
+(* compile register update *)
+let compile_mem_update gfn signals fn = 
+  Llvm.set_linkage Llvm.Linkage.Internal fn.func;
+  (*let _,u_mem = Globals.update fn.builder g_ops in*)
+  let gfn = gfn.fscope fn in
+  (*List.iter gfn.updates.umem signals;*) (* XXX ??? *)
+  Llvm.build_ret_void fn.builder |> ignore;
+  Llvm_analysis.assert_valid_function fn.func |> ignore;
+  fn.func
+
 (* compile register reset *)
-let compile_reset g_reg regs fn = 
+let compile_reg_reset gfn regs fn = 
   List.iter (fun s ->
       let v = reset_value s in
-      let g = g_reg (Sc.width s) (uid s) in
+      let g = gfn.greg (Sc.width s) (uid s) in
       ignore (Llvm.build_store v g.Globals.cur fn.builder) 
     ) regs;
   Llvm.build_ret_void fn.builder |> ignore;
@@ -138,7 +158,7 @@ let call_void_fns modl name fns =
     List.iter (fun f -> Llvm.build_call f [||] "" efn.builder |> ignore) fns; 
     Llvm.build_ret_void efn.builder |> ignore;
     Llvm_analysis.assert_valid_function efn.func |> ignore)
-
+(*
 let compile_simple circuit = 
 
   let modl, g_map, g_ops, schedule, regs, mems = compile_init circuit in
@@ -158,15 +178,14 @@ let compile_simple circuit =
   call_void_fns modl "sim_cycle_seq" [ reg_update ];
   call_void_fns modl "sim_cycle_comb1" [ comb ];
 
-  make_function modl "sim_reset" void [||] (compile_reset g_reg regs);
+  make_function modl "sim_reset" void [||] (compile_reg_reset g_reg regs);
 
   (*Llvm.dump_module modl;*)
   modl
-
+*)
 let compile max circuit = 
 
-  let modl, g_map, g_ops, schedule, regs, mems = compile_init circuit in
-  let g_simple,g_reg,g_mem = g_ops in
+  let modl, gfn, schedule, regs, mems = compile_init circuit in
 
   let rec build name n f signals = 
     let h,t = split max signals in
@@ -176,25 +195,31 @@ let compile max circuit =
   in
 
   (* build the sub-cycle functions *)
-  Printf.printf "compiling combinatorial [%i]\n%!" (List.length schedule);
-  let comb = build "cycle" 0 (compile_cycle modl g_ops) schedule in
+  (if debug then Printf.printf "compiling combinatorial [%i]\n%!" (List.length schedule));
+  let comb = build "cycle" 0 (compile_cycle modl gfn) schedule in
 
   (* build register updates *)
-  Printf.printf "compiling seqential (store) [%i]\n%!" (List.length regs);
-  let reg_store = build "reg_store" 0 (compile_reg_store g_ops) regs in
-  Printf.printf "compiling seqential (update) [%i]\n%!" (List.length regs);
-  let reg_update = build "reg_update" 0 (compile_reg_update g_ops) regs in
+  (if debug then Printf.printf "compiling reg store [%i]\n%!" (List.length regs));
+  let reg_store = build "reg_store" 0 (compile_reg_store gfn) regs in
+  (if debug then Printf.printf "compiling reg update [%i]\n%!" (List.length regs));
+  let reg_update = build "reg_update" 0 (compile_reg_update gfn) regs in
+
+  (* build memory updates *)
+  (if debug then Printf.printf "compiling mem store [%i]\n%!" (List.length mems));
+  let mem_store = build "mem_store" 0 (compile_mem_store gfn) mems in
+  (if debug then Printf.printf "compiling mem update [%i]\n%!" (List.length mems));
+  let mem_update = build "mem_update" 0 (compile_mem_update gfn) mems in
 
   (* sort out inter-sub-cycle dependancies *)
-  Printf.printf "compiling dependants [%i]\n%!" (List.length comb);
-  compile_cycle_deps circuit g_map comb;
+  (if debug then Printf.printf "compiling dependants [%i]\n%!" (List.length comb));
+  compile_cycle_deps circuit gfn.gmap comb;
 
   let fcomb = List.map (fun (f,_,_,_) -> f) comb in
   call_void_fns modl "sim_cycle_comb0" (fcomb @ reg_store);
   call_void_fns modl "sim_cycle_seq" reg_update;
   call_void_fns modl "sim_cycle_comb1" fcomb;
 
-  make_function modl "sim_reset" void [||] (compile_reset g_reg regs) |> ignore;
+  make_function modl "sim_reset" void [||] (compile_reg_reset gfn regs) |> ignore;
 
   (* dump_module modl; *)
   modl

@@ -183,7 +183,7 @@ let compile_comb_list modl fn builder load map signals =
 
 (* let compile_reg *)
 let compile_reg builder load store signal = 
-  let r = match signal with Signal_reg(_,r) -> r | _ -> failwith "" in
+  let r = match signal with Signal_reg(_,r) -> r | _ -> failwith "compile_reg: not a register!" in
   let sdep n = List.nth (deps signal) n in
   let instr = load in
   let dep = instr << sdep in
@@ -205,6 +205,9 @@ let compile_reg builder load store signal =
   store q signal
 
 (* let compile_mem *)
-
+let compile_mem builder load store signal = 
+  let r,m = match signal with Signal_mem(_,_,r,m) -> r,m 
+                            | _ -> failwith "compile_mem: not a memory!" in
+  ()
 
 

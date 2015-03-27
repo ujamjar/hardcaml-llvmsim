@@ -18,5 +18,9 @@ val compile_reg :
   (signal -> Llvm.llvalue) ->
   (Llvm.llvalue -> signal -> 'a) -> signal -> 'a
 
-(* val compile_mem : ... *)
+val compile_mem :
+  Llvm.llbuilder ->
+  (signal -> Llvm.llvalue) ->
+  (Llvm.llvalue -> signal -> 'a) -> signal -> unit
+
 
