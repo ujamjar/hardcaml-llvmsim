@@ -35,7 +35,7 @@ Executable test_mem
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       hardcaml-llvmsim, hardcaml-waveterm.lterm
+  BuildDepends:       hardcaml.syntax, hardcaml-llvmsim, hardcaml-waveterm.lterm
 
 SourceRepository master
   Type:     git

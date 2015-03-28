@@ -117,7 +117,7 @@ let compile_reg_store gfn signals fn =
 let compile_mem_store gfn signals fn = 
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
   let gfn = gfn.fscope fn in
-  let load = load_signal gfn in
+  let load = load_signal ~rd_mem:false gfn in
   let store = gfn.stores.smem in
   let compile_mem = Compile.compile_mem fn.builder (load UidMap.empty) store in
   List.iter compile_mem signals;
@@ -136,9 +136,12 @@ let compile_reg_update gfn signals fn =
 (* compile register update *)
 let compile_mem_update gfn signals fn = 
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
-  (*let _,u_mem = Globals.update fn.builder g_ops in*)
   let gfn = gfn.fscope fn in
-  (*List.iter gfn.updates.umem signals;*) (* XXX ??? *)
+  List.iter (function
+    | Signal_mem(_,_,_,m) as signal -> 
+      let addr = load_signal gfn UidMap.empty m.mem_write_address in
+      gfn.updates.umem addr signal
+    | _ -> failwith "expecting memory") signals;
   Llvm.build_ret_void fn.builder |> ignore;
   Llvm_analysis.assert_valid_function fn.func |> ignore;
   fn.func
@@ -195,28 +198,22 @@ let compile max circuit =
   in
 
   (* build the sub-cycle functions *)
-  (if debug then Printf.printf "compiling combinatorial [%i]\n%!" (List.length schedule));
   let comb = build "cycle" 0 (compile_cycle modl gfn) schedule in
 
   (* build register updates *)
-  (if debug then Printf.printf "compiling reg store [%i]\n%!" (List.length regs));
   let reg_store = build "reg_store" 0 (compile_reg_store gfn) regs in
-  (if debug then Printf.printf "compiling reg update [%i]\n%!" (List.length regs));
   let reg_update = build "reg_update" 0 (compile_reg_update gfn) regs in
 
   (* build memory updates *)
-  (if debug then Printf.printf "compiling mem store [%i]\n%!" (List.length mems));
   let mem_store = build "mem_store" 0 (compile_mem_store gfn) mems in
-  (if debug then Printf.printf "compiling mem update [%i]\n%!" (List.length mems));
   let mem_update = build "mem_update" 0 (compile_mem_update gfn) mems in
 
   (* sort out inter-sub-cycle dependancies *)
-  (if debug then Printf.printf "compiling dependants [%i]\n%!" (List.length comb));
   compile_cycle_deps circuit gfn.gmap comb;
 
   let fcomb = List.map (fun (f,_,_,_) -> f) comb in
-  call_void_fns modl "sim_cycle_comb0" (fcomb @ reg_store);
-  call_void_fns modl "sim_cycle_seq" reg_update;
+  call_void_fns modl "sim_cycle_comb0" (fcomb @ reg_store @ mem_store);
+  call_void_fns modl "sim_cycle_seq" (reg_update @ mem_update);
   call_void_fns modl "sim_cycle_comb1" fcomb;
 
   make_function modl "sim_reset" void [||] (compile_reg_reset gfn regs) |> ignore;
@@ -351,47 +348,20 @@ struct
 
 end
 
-(* XXX delete me *)
-(*
-let test_bb () = 
+module Gen(B : Bits_ext.S)(I : Interface.S)(O : Interface.S) = struct
 
-  let context = global_context () in
-  let modl = Llvm.create_module context "mytestmodl" in
+    module S = Make(B)
+    module Cs = Cyclesim.Api
 
+    let make name logic = 
+        let outputs = logic I.(map (fun (n,b) -> Signal.Comb.input n b) t) in 
+        let circuit = Circuit.make name 
+            (O.to_list (O.map2 (fun (n,_) s -> Signal.Comb.output n s) O.t outputs))
+        in
+        let sim = S.make circuit in
+        let inputs = I.(map (fun (n,_) -> try Cs.in_port sim n with _ -> ref B.empty) t) in
+        let outputs = O.(map (fun (n,_) -> try Cs.out_port sim n with _ -> ref B.empty) t) in
+        circuit, sim, inputs, outputs
 
-  let open Llvm in
-
-  let hmm = declare_function "hmm" (function_type void [||]) modl in
-
-  let myfn fn builder =
-    let body_blk = append_block (global_context()) "body" fn in
-    let jmp = build_br body_blk builder in
-    let () = position_at_end body_blk builder in
-
-    let global () = 
-      let bbprev = insertion_block builder in
-      let () = position_before nop builder in
-      let x = define_global  "global_var" (const_int int8 0) modl in
-      let x = build_load x "" builder in
-      let () = position_at_end bbprev builder in
-      x
-    in
-
-    let a = build_add (const_int int8 1) (const_int int8 2) "add" builder in
-    let g0 = global () in
-    let g1 = global () in
-    let b = build_add g0 g1 "add" builder in
-    let g2 = global () in
-    let c = build_add a b "add" builder in
-    let d = build_add g2 c "add" builder in
-    Llvm.build_ret d builder |> ignore;
-    Printf.printf "ok %b\n" (Llvm_analysis.verify_function fn);
-    fn
-  in
-
-  let fn = make_function modl "mytestfn" int8 [||] myfn in
-  ignore @@ Llvm_bitwriter.write_bitcode_file modl "mytestfn.bc";
-  Llvm_analysis.assert_valid_function fn;
-  ()
-*) 
+end
 

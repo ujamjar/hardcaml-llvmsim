@@ -21,6 +21,6 @@ val compile_reg :
 val compile_mem :
   Llvm.llbuilder ->
   (signal -> Llvm.llvalue) ->
-  (Llvm.llvalue -> signal -> 'a) -> signal -> unit
+  (Llvm.llvalue -> signal -> unit) -> signal -> unit
 
 

@@ -64,5 +64,5 @@ and updates =
 
 val global_fns : Llvm.llmodule -> globals
 
-val load_signal : func -> llvalue UidMap.t -> signal -> llvalue
+val load_signal : ?rd_mem:bool -> func -> llvalue UidMap.t -> signal -> llvalue
 

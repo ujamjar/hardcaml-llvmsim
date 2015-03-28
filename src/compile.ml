@@ -183,31 +183,42 @@ let compile_comb_list modl fn builder load map signals =
 
 (* let compile_reg *)
 let compile_reg builder load store signal = 
-  let r = match signal with Signal_reg(_,r) -> r | _ -> failwith "compile_reg: not a register!" in
-  let sdep n = List.nth (deps signal) n in
-  let instr = load in
-  let dep = instr << sdep in
+  let r = 
+    match signal with 
+    | Signal_reg(_,r) -> r 
+    | _ -> failwith "compile_reg: not a register!" 
+  in
   let name n = name n signal in
   let width = Sc.width signal in
-  let src = dep 0 in (* input data *)
-  let cur_q = instr signal in
-  let clr, clr_level, clr_value = 
+  let src = load (List.hd (deps signal)) in (* input data *)
+  let cur_q = load signal in (* current value *)
+  (* clear logic *)
+  let clr, clr_level, clr_value = (* clear and enable logic *)
     if r.reg_clear <> Sc.empty then
-      instr r.reg_clear, instr r.reg_clear_level, instr r.reg_clear_value
+      load r.reg_clear, load r.reg_clear_level, load r.reg_clear_value
     else 
       const_int 1 0, const_int 1 1, const_int width 0
   in
   let clr = build_icmp Icmp.Eq clr clr_level (name "reg_clr") builder in
-  let ena = if r.reg_enable <> Sc.empty then instr r.reg_enable else const_int 1 1 in
+  (* enable logic *)
+  let ena = if r.reg_enable <> Sc.empty then load r.reg_enable else const_int 1 1 in
   let ena = build_and ena (build_not clr (name "reg_clr_not") builder) (name "reg_ena") builder in
+  (* output *)
   let q = build_select clr clr_value cur_q (name "reg_clr_update") builder in
   let q = build_select ena src q (name "reg_ena_update") builder in
   store q signal
 
 (* let compile_mem *)
 let compile_mem builder load store signal = 
-  let r,m = match signal with Signal_mem(_,_,r,m) -> r,m 
-                            | _ -> failwith "compile_mem: not a memory!" in
-  ()
-
+  let r,m = 
+    match signal with 
+    | Signal_mem(_,_,r,m) -> r,m 
+    | _ -> failwith "compile_mem: not a memory!" 
+  in
+  let name n = name n signal in
+  let src = load (List.hd (deps signal)) in (* input data *)
+  let cur_q = load signal in (* current value at address *)
+  let ena = load r.reg_enable in (* write enable *)
+  let q = build_select ena src cur_q (name "mem_ena_update") builder in
+  store q signal
 

@@ -88,7 +88,8 @@ let globals modl =
   let mem width count uid = 
     let name = "mem_" ^ string_of_int width ^ "_" ^ 
                string_of_int count ^ "_" ^ Int64.to_string uid in
-    let cur = declare_global (array_type (int_type width) count) name modl in
+    (*let cur = declare_global (array_type (int_type width) count) name modl in*)
+    let cur = define_global name (undef (array_type (int_type width) count)) modl in
     let next = define_global (name^"_next") (const_int width 0) modl in
     set_linkage Linkage.Internal cur;
     set_linkage Linkage.Internal next;
@@ -114,6 +115,10 @@ let globals modl =
   let mem w c = memoize (mem w c) in
   globals, (simple, reg, mem)
 
+let zext_addr addr builder = 
+  let t = type_of addr in
+  let w = integer_bitwidth t in
+  build_zext addr (int_type (w+1)) "zext_mem_addr" builder
 
 let load fn (simple,reg,mem) = 
   let load_simple port s = 
@@ -135,6 +140,7 @@ let load fn (simple,reg,mem) =
     fn.in_entry (fun builder ->
       let name = name "mload" s in
       let g = mem (Sc.width s) (memsize s) (uid s) in
+      let addr = zext_addr addr builder in
       let addr = build_gep g.cur [| zero32; addr |] "" builder in
       build_load addr name builder)
   in
@@ -180,6 +186,7 @@ let update builder (simple,reg,mem) =
   in 
   let update_mem addr s = 
     let g = mem (Sc.width s) (memsize s) (uid s) in
+    let addr = zext_addr addr builder in
     let addr = build_gep g.cur [| zero32; addr |] "" builder in
     let x = build_load g.next "" builder in
     build_store x addr builder |> ignore
@@ -236,7 +243,7 @@ let global_fns modl =
   in
   { gmap; gsimple; greg; gmem; fscope }
 
-let rec load_signal gfn map signal = 
+let rec load_signal ?(rd_mem=true) gfn map signal = 
   match signal with
   | Signal_const(_) -> const_of_signal signal
   | _ ->
@@ -246,8 +253,17 @@ let rec load_signal gfn map signal =
         begin
           match signal with
           | Signal_reg(_) -> gfn.loads.lreg signal
-          | Signal_mem(_,_,_,x) -> gfn.loads.lmem (load_signal gfn map x.mem_read_address) signal
+          | Signal_mem(_,_,_,x) ->
+            let address = if rd_mem then x.mem_read_address else x.mem_write_address in
+            gfn.loads.lmem (load_signal gfn map address) signal
           | _ -> gfn.loads.lsimple false signal
         end
     end
+
+let store_signal gfn value signal = 
+  match signal with
+  | Signal_const(_) -> ()
+  | Signal_reg(_) -> gfn.stores.sreg value signal
+  | Signal_mem(_,_,_,x) -> gfn.stores.smem value signal
+  | _ -> gfn.stores.ssimple value false signal
 
