@@ -63,7 +63,6 @@ type 'a func =
   {
     func : llvalue;
     builder : llbuilder;
-    in_entry : (llbuilder -> 'a) -> 'a;
   }
 
 (* build a function with the given argument and return types *)
@@ -71,19 +70,9 @@ let make_function modl name returns args f =
   let builder = builder () in
   let fn_type = function_type returns args in
   let fn = declare_function name fn_type modl in
-  let bbe = append_block "entry" fn in
-  let bbb = append_block "body" fn in
-  position_at_end bbe builder;
-  let jmp = build_br bbb builder in
-  position_at_end bbb builder;
-  let in_entry f = 
-    let bbp = insertion_block builder in
-    let () = position_before jmp builder in
-    let r = f builder in
-    position_at_end bbp builder;
-    r
-  in
-  f {func=fn; builder; in_entry}
+  let bb = append_block "entry" fn in
+  position_at_end bb builder;
+  f {func=fn; builder}
 
 let name n s = n ^ "_" ^ Int64.to_string (St.uid s) ^ "_s"
 let memsize = function St.Signal_mem(_,_,_,m) -> m.St.mem_size | _ -> 0 
@@ -111,4 +100,12 @@ let puts modl =
     let x = Llvm.define_global "debug" (Llvm.const_stringz (global_context()) s) modl in
     let x = Llvm.build_gep x [|zero32; zero32|] "" builder in
     Llvm.build_call f [|x|] "" builder)
+
+let assert_valid_function fn = 
+  if not (Llvm_analysis.verify_function fn) then begin
+    Llvm.dump_value fn;
+    Llvm_analysis.assert_valid_function fn;
+    ()
+  end
+
 

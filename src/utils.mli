@@ -34,7 +34,6 @@ type 'a func =
   {
     func : Llvm.llvalue;
     builder : Llvm.llbuilder;
-    in_entry : (Llvm.llbuilder -> 'a) -> 'a;
   }
 
 val make_function : 
@@ -46,4 +45,6 @@ val name : string -> St.signal -> string
 val memsize : St.signal -> int
 
 val split : int -> 'a list -> 'a list * 'a list
+
+val assert_valid_function : Llvm.llvalue -> unit
 

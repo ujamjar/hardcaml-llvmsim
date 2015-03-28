@@ -50,8 +50,13 @@ let compile_init circuit =
 
   (* scheduler *)
   let regs, mems, consts, inputs, remaining = Cs.find_elements circuit in
-  let ready = regs @ mems @ inputs @ consts in
-  let schedule = Cs.scheduler deps remaining ready in
+  let ready = regs @ inputs @ consts in
+  let deps' s = 
+      match s with 
+      | Signal_mem(_, _,  _, m) -> [m.mem_read_address]
+      | _ -> deps s
+  in
+  let schedule = Cs.scheduler deps' (mems @ remaining) ready in
 
   (* initial creation of regs and mems (inputs and outputs already made) *)
   List.iter (fun s -> gfn.greg (Sc.width s) (uid s) |> ignore) regs;
@@ -66,16 +71,17 @@ let compile_cycle modl gfn signals fn =
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
   let gfn = gfn.fscope fn in
   let map = Compile.compile_comb_list 
-      modl fn.func fn.builder (load_signal gfn)
+      modl gfn fn.func fn.builder 
       UidMap.empty signals
   in
-  let store rnd s = 
-    try gfn.stores.ssimple (load_signal gfn map s) rnd s 
+  let store s = 
+    try (*gfn.stores.ssimple (load_signal gfn map s) false s*)
+      store_signal gfn (snd (load_signal gfn map s)) s
     with _ -> ()
   in
   let return () = 
     Llvm.build_ret_void fn.builder |> ignore;
-    Llvm_analysis.assert_valid_function fn.func |> ignore;
+    assert_valid_function fn.func;
   in
   fn.func, map, store, return 
 
@@ -97,7 +103,7 @@ let compile_cycle_deps circuit g_map r =
           (not (is_input u)) && 
           (not (is_reg s)) && 
           (not (is_mem s)) then
-        store false s
+        store s
     ) m
   ) r;
   List.iter (fun (_,_,_,r) -> r()) r
@@ -106,7 +112,7 @@ let compile_cycle_deps circuit g_map r =
 let compile_reg_store gfn signals fn = 
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
   let gfn = gfn.fscope fn in
-  let load = Globals.load_signal gfn in
+  let load map signal = snd (load_signal gfn map signal) in
   let store = gfn.stores.sreg in
   let compile_reg = Compile.compile_reg fn.builder (load UidMap.empty) store in
   List.iter compile_reg signals;
@@ -117,7 +123,7 @@ let compile_reg_store gfn signals fn =
 let compile_mem_store gfn signals fn = 
   Llvm.set_linkage Llvm.Linkage.Internal fn.func;
   let gfn = gfn.fscope fn in
-  let load = load_signal ~rd_mem:false gfn in
+  let load map signal = snd (load_signal ~rd_mem:false gfn map signal) in
   let store = gfn.stores.smem in
   let compile_mem = Compile.compile_mem fn.builder (load UidMap.empty) store in
   List.iter compile_mem signals;
@@ -130,7 +136,7 @@ let compile_reg_update gfn signals fn =
   let u_reg = (gfn.fscope fn).updates.ureg in
   List.iter u_reg signals;
   Llvm.build_ret_void fn.builder |> ignore;
-  Llvm_analysis.assert_valid_function fn.func |> ignore;
+  assert_valid_function fn.func;
   fn.func
 
 (* compile register update *)
@@ -139,11 +145,11 @@ let compile_mem_update gfn signals fn =
   let gfn = gfn.fscope fn in
   List.iter (function
     | Signal_mem(_,_,_,m) as signal -> 
-      let addr = load_signal gfn UidMap.empty m.mem_write_address in
+      let _, addr = load_signal gfn UidMap.empty m.mem_write_address in
       gfn.updates.umem addr signal
     | _ -> failwith "expecting memory") signals;
   Llvm.build_ret_void fn.builder |> ignore;
-  Llvm_analysis.assert_valid_function fn.func |> ignore;
+  assert_valid_function fn.func;
   fn.func
 
 (* compile register reset *)
@@ -154,38 +160,14 @@ let compile_reg_reset gfn regs fn =
       ignore (Llvm.build_store v g.Globals.cur fn.builder) 
     ) regs;
   Llvm.build_ret_void fn.builder |> ignore;
-  Llvm_analysis.assert_valid_function fn.func |> ignore
+  assert_valid_function fn.func 
 
 let call_void_fns modl name fns = 
   make_function modl name void [||] (fun efn ->
     List.iter (fun f -> Llvm.build_call f [||] "" efn.builder |> ignore) fns; 
     Llvm.build_ret_void efn.builder |> ignore;
-    Llvm_analysis.assert_valid_function efn.func |> ignore)
-(*
-let compile_simple circuit = 
+    assert_valid_function efn.func)
 
-  let modl, g_map, g_ops, schedule, regs, mems = compile_init circuit in
-  let g_simple,g_reg,g_mem = g_ops in
-
-  let compile_cycle fn = 
-    let fn,map,store,return = compile_cycle modl g_ops schedule fn in 
-    compile_cycle_deps circuit g_map [(fn,map,store,return)];
-    fn
-  in
-
-  let reg_store = make_function modl "reg_store" void [||] (compile_reg_store g_ops regs) in
-  let reg_update = make_function modl "reg_update" void [||] (compile_reg_update g_ops regs) in
-  let comb = make_function modl "cycle_comb" void [||] compile_cycle in
-
-  call_void_fns modl "sim_cycle_comb0" [ comb; reg_store ];
-  call_void_fns modl "sim_cycle_seq" [ reg_update ];
-  call_void_fns modl "sim_cycle_comb1" [ comb ];
-
-  make_function modl "sim_reset" void [||] (compile_reg_reset g_reg regs);
-
-  (*Llvm.dump_module modl;*)
-  modl
-*)
 let compile max circuit = 
 
   let modl, gfn, schedule, regs, mems = compile_init circuit in
@@ -221,7 +203,6 @@ let compile max circuit =
   (* dump_module modl; *)
   modl
 
-(*let compile' = compile_simple*)
 let compile' = compile 50
 
 let make circuit = 

@@ -4,11 +4,18 @@ open Globals
 open HardCaml.Signal.Types
 module Sc = HardCaml.Signal.Comb
 
-let compile_comb modl fn builder load map signal =
+let compile_comb modl gfn fn builder map signal =
   let sdep n = List.nth (deps signal) n in
-  let instr = load map in
-  let dep = instr << sdep in
+  let dep map i = load_signal gfn map (sdep i) in
   let name n = name n signal in
+
+  let rec load_list map r = function
+    | [] -> map, List.rev r
+    | h::t -> 
+      let map,instr = load_signal gfn map h in
+      load_list map (instr::r) t
+  in
+  let add_signal v map = UidMap.add (uid signal) v map, v in
 
   let compile_cat () =
     let name = name "cat" in
@@ -25,30 +32,35 @@ let compile_comb modl fn builder load map signal =
         build_or r (f s n) name builder
     in
     let sdeps = deps signal in
-    let deps = HardCaml.Utils.mapi (fun i _ -> dep i) sdeps in
+    let map, deps = load_list map [] sdeps in
     let d = List.rev (HardCaml.Utils.map2 (fun s d -> Sc.width s, d) sdeps deps) in
-    fst(List.fold_left 
-          (fun (res,sft) (wid,arg) -> or2 res arg sft,sft+wid)
-          (const_int width 0, 0) d)
+    let r = 
+      fst(List.fold_left 
+        (fun (res,sft) (wid,arg) -> or2 res arg sft,sft+wid)
+        (const_int width 0, 0) d)
+    in
+    add_signal r map
   in
 
   let compile_select h l = 
     let name = name "select" in
-    let d = dep 0 in
+    let map,d = dep map 0 in
     let w = Sc.width (sdep 0) in
-    if w = (h-l+1) then d
+    if w = (h-l+1) then add_signal d map
     else
       let sft = const_int w l in
       let s = build_lshr d sft name builder in
-      build_trunc s (int_type (h-l+1)) name builder
+      add_signal (build_trunc s (int_type (h-l+1)) name builder) map
   in
 
   let compile_mul signed id = 
     let name = name "mul" in
     let ext = if signed then build_sext else build_zext in
-    let a = ext (dep 0) (int_type id.s_width) name builder in
-    let b = ext (dep 1) (int_type id.s_width) name builder in
-    build_mul a b name builder (* XXX this may only work upto a max no of bits *)
+    let map, d0 = dep map 0 in
+    let map, d1 = dep map 1 in
+    let a = ext d0 (int_type id.s_width) name builder in
+    let b = ext d1 (int_type id.s_width) name builder in
+    add_signal (build_mul a b name builder) map (* XXX this may only work upto a max no of bits *)
   in
 
   (* build a select table and jump targets for the mux *)
@@ -70,15 +82,18 @@ let compile_comb modl fn builder load map signal =
       List.map append_blk (List.tl (deps signal))
     in
     let end_bb = append_block  (name^"_bb_end") fn in
-    HardCaml.Utils.iteri (fun i bb ->
+    let map,_ = List.fold_left (fun (map,i) bb ->
         position_at_end bb builder;
-        build_store (dep (i+1)) r builder |> ignore;
-        build_br end_bb builder |> ignore
-      ) case_bbs;
+        let map, dep = dep map (i+1) in
+        build_store dep r builder |> ignore;
+        build_br end_bb builder |> ignore;
+        map, i+1
+      ) (map,0) case_bbs in
     position_at_end sel_bb builder;
-    make_switch (Sc.width signal) (dep 0) case_bbs builder;
+    let map, dep = dep map 0 in
+    make_switch (Sc.width signal) dep case_bbs builder;
     position_at_end end_bb builder;
-    build_load r name builder
+    add_signal (build_load r name builder) map
   in
 
   (* a simple mux is one with only a few cases, and is implemented as
@@ -87,7 +102,7 @@ let compile_comb modl fn builder load map signal =
   let compile_simple_mux () = 
     let name = name "smux" in
     let wsel = Sc.width (List.hd (deps signal)) in
-    let deps = List.map instr (deps signal) in
+    let map, deps = load_list map [] (deps signal) in
     let sel,cases = List.hd deps, List.tl deps in
     let def,cases =
       let c = List.rev cases in
@@ -99,7 +114,7 @@ let compile_comb modl fn builder load map signal =
           v r name builder, 
         (i+1)
       ) (def,0) cases in
-    r
+    add_signal r map
   in
 
   (* a constant mux has only constants as it's cases and is built
@@ -126,7 +141,7 @@ let compile_comb modl fn builder load map signal =
         set_linkage Linkage.Internal g;
         g
     in
-    let sel = dep 0 in
+    let map, sel = dep map 0 in
     let w = Sc.width (sdep 0) in
     let max = const_int (w+1) (size-1) in
     let sel = build_uresize sel w (w+1) name builder in
@@ -136,7 +151,7 @@ let compile_comb modl fn builder load map signal =
         sel max name builder
     in
     let addr = build_gep global [| zero32; sel |] name builder in
-    build_load addr name builder
+    add_signal (build_load addr name builder) map
   in
 
   (* select the mux implementation *)
@@ -149,6 +164,21 @@ let compile_comb modl fn builder load map signal =
       compile_generic_mux ()
   in
 
+  let compile_mem () = 
+    let map, rmem = load_signal gfn map signal in
+    add_signal rmem map
+  in
+
+  let compile_bop f name = 
+    let map, d0 = dep map 0 in
+    let map, d1 = dep map 1 in
+    add_signal (f d0 d1 name builder) map
+  in
+  let compile_uop f name = 
+    let map, d0 = dep map 0 in
+    add_signal (f d0 name builder) map
+  in
+
   (* compile each type of signal *)
   match signal with
   | Signal_empty -> failwith "cant compile empty signal"
@@ -156,30 +186,28 @@ let compile_comb modl fn builder load map signal =
   | Signal_op(id,op) ->
     begin
       match op with
-      | Signal_add -> build_add (dep 0) (dep 1) (name "add") builder  
-      | Signal_sub -> build_sub (dep 0) (dep 1) (name "sub") builder
+      | Signal_add -> compile_bop build_add (name "add") 
+      | Signal_sub -> compile_bop build_sub (name "sub") 
       | Signal_mulu -> compile_mul false id
       | Signal_muls -> compile_mul true id
-      | Signal_and -> build_and (dep 0) (dep 1) (name "and") builder 
-      | Signal_or -> build_or (dep 0) (dep 1) (name "or") builder
-      | Signal_xor -> build_xor (dep 0) (dep 1) (name "xor") builder
-      | Signal_eq -> build_icmp Icmp.Eq (dep 0) (dep 1) (name "eq") builder
-      | Signal_not -> build_not (dep 0) (name "not") builder
-      | Signal_lt -> build_icmp Icmp.Ult (dep 0) (dep 1) (name "lt") builder
+      | Signal_and -> compile_bop build_and (name "and") 
+      | Signal_or -> compile_bop build_or (name "or") 
+      | Signal_xor -> compile_bop build_xor (name "xor") 
+      | Signal_eq -> compile_bop (build_icmp Icmp.Eq) (name "eq") 
+      | Signal_not -> compile_uop build_not (name "not") 
+      | Signal_lt -> compile_bop (build_icmp Icmp.Ult) (name "lt") 
       | Signal_cat -> compile_cat ()
       | Signal_mux -> compile_mux ()
     end
-  | Signal_wire(_) -> dep 0
+  | Signal_wire(_) -> let map, r = dep map 0 in add_signal r map
   | Signal_select(_,h,l) -> compile_select h l
   | Signal_reg(_,r) -> failwith "Registers not expected here"
-  | Signal_mem(_,_,r,m) -> failwith "Memories not expected here"
+  | Signal_mem(_,_,r,m) -> compile_mem ()
   | Signal_inst(_) -> failwith "Instantiations are not supported in simulation"
 
-let compile_comb_list modl fn builder load map signals = 
-  let compile_comb = compile_comb modl fn builder load in
-  List.fold_left (fun map s ->
-      UidMap.add (uid s) (compile_comb map s) map)
-    map signals
+let compile_comb_list modl gfn fn builder map signals = 
+  let compile_comb = compile_comb modl gfn fn builder in
+  List.fold_left (fun map s -> fst (compile_comb map s)) map signals
 
 (* let compile_reg *)
 let compile_reg builder load store signal = 
@@ -221,4 +249,6 @@ let compile_mem builder load store signal =
   let ena = load r.reg_enable in (* write enable *)
   let q = build_select ena src cur_q (name "mem_ena_update") builder in
   store q signal
+
+
 

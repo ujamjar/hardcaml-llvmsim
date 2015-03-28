@@ -121,28 +121,26 @@ let zext_addr addr builder =
   build_zext addr (int_type (w+1)) "zext_mem_addr" builder
 
 let load fn (simple,reg,mem) = 
+  let builder = fn.builder in
   let load_simple port s = 
-    fn.in_entry (fun builder ->
-      let name = name "sload" s in
-      let g = simple port (Sc.width s) (uid s) in 
-      let x = build_load g.cur name builder in
-      if g.width = g.rnd_width then x
-      else build_trunc x (int_type g.width) name builder)
+    let name = name "sload" s in
+    let g = simple port (Sc.width s) (uid s) in 
+    let x = build_load g.cur name builder in
+    if g.width = g.rnd_width then x
+    else build_trunc x (int_type g.width) name builder
   in
   let load_reg s = 
-    fn.in_entry (fun builder ->
-      let name = name "rload" s in
-      let g = reg (Sc.width s) (uid s) in 
-      let x = build_load g.cur name builder in
-      build_uresize x g.rnd_width g.width name builder)
+    let name = name "rload" s in
+    let g = reg (Sc.width s) (uid s) in 
+    let x = build_load g.cur name builder in
+    build_uresize x g.rnd_width g.width name builder
   in
   let load_mem addr s = 
-    fn.in_entry (fun builder ->
-      let name = name "mload" s in
-      let g = mem (Sc.width s) (memsize s) (uid s) in
-      let addr = zext_addr addr builder in
-      let addr = build_gep g.cur [| zero32; addr |] "" builder in
-      build_load addr name builder)
+    let name = name "mload" s in
+    let g = mem (Sc.width s) (memsize s) (uid s) in
+    let addr = zext_addr addr builder in
+    let addr = build_gep g.cur [| zero32; addr |] "" builder in
+    build_load addr name builder
   in
   let globals = ref UidMap.empty in
   let memoize f s = 
@@ -245,18 +243,24 @@ let global_fns modl =
 
 let rec load_signal ?(rd_mem=true) gfn map signal = 
   match signal with
-  | Signal_const(_) -> const_of_signal signal
+  | Signal_const(_) -> map, const_of_signal signal
   | _ ->
     begin
-      try UidMap.find (uid signal) map
+      try map, UidMap.find (uid signal) map
       with _ ->
         begin
           match signal with
-          | Signal_reg(_) -> gfn.loads.lreg signal
+          | Signal_reg(_) -> 
+            let s = gfn.loads.lreg signal in
+            UidMap.add (uid signal) s map, s
           | Signal_mem(_,_,_,x) ->
             let address = if rd_mem then x.mem_read_address else x.mem_write_address in
-            gfn.loads.lmem (load_signal gfn map address) signal
-          | _ -> gfn.loads.lsimple false signal
+            let map, address = load_signal gfn map address in
+            let s = gfn.loads.lmem address signal in
+            UidMap.add (uid signal) s map, s
+          | _ -> 
+            let s = gfn.loads.lsimple false signal in
+            UidMap.add (uid signal) s map, s
         end
     end
 

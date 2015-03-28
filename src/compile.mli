@@ -2,14 +2,11 @@ open HardCaml.Signal.Types
 module Sc = HardCaml.Signal.Comb
 
 val compile_comb :
-  Llvm.llmodule -> Llvm.llvalue -> Llvm.llbuilder ->
-  ('a -> signal -> Llvm.llvalue) ->
-  'a -> signal -> Llvm.llvalue
+  Llvm.llmodule -> Globals.func -> Llvm.llvalue -> Llvm.llbuilder ->
+  Llvm.llvalue UidMap.t -> signal -> Llvm.llvalue UidMap.t * Llvm.llvalue
 
 val compile_comb_list :
-  Llvm.llmodule -> Llvm.llvalue -> Llvm.llbuilder ->
-  (Llvm.llvalue UidMap.t ->
-   signal -> Llvm.llvalue) ->
+  Llvm.llmodule -> Globals.func -> Llvm.llvalue -> Llvm.llbuilder ->
   Llvm.llvalue UidMap.t ->
   signal list -> Llvm.llvalue UidMap.t
 
