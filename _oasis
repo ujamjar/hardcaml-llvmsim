@@ -37,6 +37,14 @@ Executable test_mem
   Install:            false
   BuildDepends:       hardcaml.syntax, hardcaml-llvmsim, hardcaml-waveterm.lterm
 
+Executable test_fifo
+  Path:               test
+  MainIs:             test_fifo.ml
+  Custom:             true
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       hardcaml.syntax, hardcaml-llvmsim, hardcaml-waveterm.lterm
+
 SourceRepository master
   Type:     git
   Location: https://github.com/ujamjar/hardcaml-llvmsim.git

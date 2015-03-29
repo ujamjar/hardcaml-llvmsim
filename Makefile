@@ -21,6 +21,7 @@ uninstall:
 clean:
 	ocaml setup.ml -clean
 	find . -name "*~" | xargs rm -f
+	rm -f *.bc *.ll
 
 distclean:
 	ocaml setup.ml -distclean

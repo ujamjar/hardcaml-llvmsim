@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 68fad4f8800a682e0195f495fe8dbf59)
+# DO NOT EDIT (digest: 40aa7d7b0f9059abaafa5e2581bfe22c)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -56,6 +56,17 @@ true: annot, bin_annot
 <test/test_mem.{native,byte}>: pkg_llvm.bitwriter
 <test/test_mem.{native,byte}>: pkg_llvm.executionengine
 <test/test_mem.{native,byte}>: use_HardCamlLlvmsim
+<test/test_mem.{native,byte}>: custom
+# Executable test_fifo
+<test/test_fifo.{native,byte}>: pkg_hardcaml
+<test/test_fifo.{native,byte}>: pkg_hardcaml-waveterm.lterm
+<test/test_fifo.{native,byte}>: pkg_hardcaml.syntax
+<test/test_fifo.{native,byte}>: pkg_llvm
+<test/test_fifo.{native,byte}>: pkg_llvm.analysis
+<test/test_fifo.{native,byte}>: pkg_llvm.bitreader
+<test/test_fifo.{native,byte}>: pkg_llvm.bitwriter
+<test/test_fifo.{native,byte}>: pkg_llvm.executionengine
+<test/test_fifo.{native,byte}>: use_HardCamlLlvmsim
 <test/*.ml{,i,y}>: pkg_hardcaml
 <test/*.ml{,i,y}>: pkg_hardcaml-waveterm.lterm
 <test/*.ml{,i,y}>: pkg_hardcaml.syntax
@@ -65,5 +76,5 @@ true: annot, bin_annot
 <test/*.ml{,i,y}>: pkg_llvm.bitwriter
 <test/*.ml{,i,y}>: pkg_llvm.executionengine
 <test/*.ml{,i,y}>: use_HardCamlLlvmsim
-<test/test_mem.{native,byte}>: custom
+<test/test_fifo.{native,byte}>: custom
 # OASIS_STOP
