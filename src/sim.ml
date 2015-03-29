@@ -59,8 +59,8 @@ let compile_init circuit =
   let schedule = Cs.scheduler deps' (mems @ remaining) ready in
 
   (* initial creation of regs and mems (inputs and outputs already made) *)
-  List.iter (fun s -> gfn.greg (Sc.width s) (uid s) |> ignore) regs;
-  List.iter (fun s -> gfn.gmem (Sc.width s) (memsize s) (uid s) |> ignore) mems;
+  List.iter (fun s -> gfn.greg (Sc.width s) s |> ignore) regs;
+  List.iter (fun s -> gfn.gmem (Sc.width s) (memsize s) s |> ignore) mems;
   
   modl, gfn, schedule, regs, mems
 
@@ -156,7 +156,7 @@ let compile_mem_update gfn signals fn =
 let compile_reg_reset gfn regs fn = 
   List.iter (fun s ->
       let v = reset_value s in
-      let g = gfn.greg (Sc.width s) (uid s) in
+      let g = gfn.greg (Sc.width s) s in
       ignore (Llvm.build_store v g.Globals.cur fn.builder) 
     ) regs;
   Llvm.build_ret_void fn.builder |> ignore;
@@ -195,7 +195,7 @@ let compile max circuit =
 
   let fcomb = List.map (fun (f,_,_,_) -> f) comb in
   call_void_fns modl "sim_cycle_comb0" (fcomb @ reg_store @ mem_store);
-  call_void_fns modl "sim_cycle_seq" (reg_update @ mem_update);
+  call_void_fns modl "sim_cycle_seq" (mem_update @ reg_update);
   call_void_fns modl "sim_cycle_comb1" fcomb;
 
   make_function modl "sim_reset" void [||] (compile_reg_reset gfn regs) |> ignore;

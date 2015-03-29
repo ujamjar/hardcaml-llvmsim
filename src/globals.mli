@@ -11,9 +11,9 @@ type global =
     typ : global_type;
   }
 
-type global_simple = bool -> int -> uid -> global
-type global_reg = int -> uid -> global
-type global_mem = int -> int -> uid -> global
+type global_simple = bool -> int -> signal -> global
+type global_reg = int -> signal -> global
+type global_mem = int -> int -> signal -> global
 
 type load_simple = bool -> signal -> llvalue
 type load_reg = signal -> llvalue

@@ -11,7 +11,7 @@ val compile_width : Llvm.llmodule -> string -> Sc.t list -> unit
 
 val compile_name : Llvm.llmodule -> string -> St.signal list -> unit
 
-val compile_ptr : (int -> St.uid -> Globals.global) -> Llvm.llmodule -> string -> Sc.t list -> unit
+val compile_ptr : (int -> St.signal -> Globals.global) -> Llvm.llmodule -> string -> Sc.t list -> unit
 
 external llvm_get_ptr : nativeint -> int -> HardCaml.Bits_ext.Utils_ext.bani = "llvmsim_get_ptr"
 

@@ -39,9 +39,9 @@ type global =
   }
 
 (* some type abbreviations *)
-type global_simple = bool -> int -> uid -> global
-type global_reg = int -> uid -> global
-type global_mem = int -> int -> uid -> global
+type global_simple = bool -> int -> signal -> global
+type global_reg = int -> signal -> global
+type global_mem = int -> int -> signal -> global
 type global_fns = global_simple * global_reg * global_mem
 
 type load_simple = bool -> signal -> llvalue
@@ -55,9 +55,8 @@ type store_mem = llvalue -> signal -> unit
 type store_fns = store_simple * store_reg * store_mem
 
 let globals modl = 
-  let simple port width uid = 
-    let name = (if port then "port_" else "internal_") ^ 
-               string_of_int width ^ "_" ^ Int64.to_string uid in
+  let simple port width signal = 
+    let name = name (if port then "port" else "internal") signal in
     let width' = if port then pbits width else width in
     let cur = define_global name (const_int width' 0) modl in
     set_linkage Linkage.Internal cur;
@@ -70,8 +69,8 @@ let globals modl =
     } in
     g
   in
-  let reg width uid = 
-    let name = "reg_" ^ string_of_int width ^ "_" ^ Int64.to_string uid in
+  let reg width signal = 
+    let name = name "reg" signal in
     let cur = define_global name (const_int width 0) modl in
     let next = define_global (name^"_next") (const_int width 0) modl in
     set_linkage Linkage.Internal cur;
@@ -85,10 +84,8 @@ let globals modl =
     } in
     g
   in
-  let mem width count uid = 
-    let name = "mem_" ^ string_of_int width ^ "_" ^ 
-               string_of_int count ^ "_" ^ Int64.to_string uid in
-    (*let cur = declare_global (array_type (int_type width) count) name modl in*)
+  let mem width count signal = 
+    let name = name "reg" signal in
     let cur = define_global name (undef (array_type (int_type width) count)) modl in
     let next = define_global (name^"_next") (const_int width 0) modl in
     set_linkage Linkage.Internal cur;
@@ -103,11 +100,11 @@ let globals modl =
     g
   in
   let globals = ref UidMap.empty in
-  let memoize f uid = 
-    try UidMap.find uid !globals
+  let memoize f signal = 
+    try UidMap.find (uid signal) !globals
     with _ -> 
-      let g = f uid in
-      globals := UidMap.add uid g !globals;
+      let g = f signal in
+      globals := UidMap.add (uid signal) g !globals;
       g
   in
   let simple r w = memoize (simple r w) in
@@ -124,20 +121,20 @@ let load fn (simple,reg,mem) =
   let builder = fn.builder in
   let load_simple port s = 
     let name = name "sload" s in
-    let g = simple port (Sc.width s) (uid s) in 
+    let g = simple port (Sc.width s) s in 
     let x = build_load g.cur name builder in
     if g.width = g.rnd_width then x
     else build_trunc x (int_type g.width) name builder
   in
   let load_reg s = 
     let name = name "rload" s in
-    let g = reg (Sc.width s) (uid s) in 
+    let g = reg (Sc.width s) s in 
     let x = build_load g.cur name builder in
     build_uresize x g.rnd_width g.width name builder
   in
   let load_mem addr s = 
     let name = name "mload" s in
-    let g = mem (Sc.width s) (memsize s) (uid s) in
+    let g = mem (Sc.width s) (memsize s) s in
     let addr = zext_addr addr builder in
     let addr = build_gep g.cur [| zero32; addr |] "" builder in
     build_load addr name builder
@@ -158,16 +155,16 @@ let load fn (simple,reg,mem) =
 let store builder (simple,reg,mem) = 
   let store_simple instr port s = 
     let name = name "sstore" s in
-    let g = simple port (Sc.width s) (uid s) in
+    let g = simple port (Sc.width s) s in
     let x = build_uresize instr g.width g.rnd_width name builder in
     build_store x g.next builder |> ignore
   in
   let store_reg instr s = 
-    let g = reg (Sc.width s) (uid s) in
+    let g = reg (Sc.width s) s in
     build_store instr g.next builder |> ignore
   in
   let store_mem instr s = 
-    let g = mem (Sc.width s) (memsize s) (uid s) in
+    let g = mem (Sc.width s) (memsize s) s in
     build_store instr g.next builder |> ignore
   in
   store_simple, store_reg, store_mem
@@ -178,15 +175,17 @@ type update_fns = update_reg * update_mem
 
 let update builder (simple,reg,mem) = 
   let update_reg s =
-    let g = reg (Sc.width s) (uid s) in
-    let x = build_load g.next "" builder in
+    let name = name "ureg" s in
+    let g = reg (Sc.width s) s in
+    let x = build_load g.next name builder in
     build_store x g.cur builder |> ignore
   in 
   let update_mem addr s = 
-    let g = mem (Sc.width s) (memsize s) (uid s) in
+    let name = name "umem" s in
+    let g = mem (Sc.width s) (memsize s) s in
     let addr = zext_addr addr builder in
-    let addr = build_gep g.cur [| zero32; addr |] "" builder in
-    let x = build_load g.next "" builder in
+    let addr = build_gep g.cur [| zero32; addr |] name builder in
+    let x = build_load g.next name builder in
     build_store x addr builder |> ignore
   in
   update_reg, update_mem

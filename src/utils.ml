@@ -74,7 +74,9 @@ let make_function modl name returns args f =
   position_at_end bb builder;
   f {func=fn; builder}
 
-let name n s = n ^ "_" ^ Int64.to_string (St.uid s) ^ "_s"
+let name n s = 
+  let names = String.concat "_" (St.names s) in
+  n ^ "_" ^ names ^ "_" ^ Int64.to_string (St.uid s) ^ "_s"
 let memsize = function St.Signal_mem(_,_,_,m) -> m.St.mem_size | _ -> 0 
 
 (* select 1st 'n' elements from list *)

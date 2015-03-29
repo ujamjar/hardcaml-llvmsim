@@ -47,7 +47,7 @@ let compile_name modl io signals =
 (* returns a pointer to the data as a 'nativeint' which can then be wrapped
  * in a big array *)
 let compile_ptr get_global modl io signals =
-  let globals = List.map (fun s -> (get_global (Sc.width s) (St.uid s)).cur) signals in
+  let globals = List.map (fun s -> (get_global (Sc.width s) s).cur) signals in
   compile_info modl ("ptr_" ^ io) (int64,zero64) [|int32|]
     (fun fn builder d ->
        let bcast = build_bitcast d (ptr_type 1 (int64)) "bitcast" builder in
