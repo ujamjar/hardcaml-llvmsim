@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 40aa7d7b0f9059abaafa5e2581bfe22c)
+# DO NOT EDIT (digest: ca27b2fc61551dce6230e155248cda16)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -24,21 +24,21 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: oasis_library_hardcamlllvmsim_ccopt
 "src/hcgetptr_stubs.c": oasis_library_hardcamlllvmsim_ccopt
 <src/HardCamlLlvmsim.{cma,cmxa}>: use_libHardCamlLlvmsim_stubs
-<src/*.ml{,i,y}>: pkg_hardcaml
+<src/*.ml{,i,y}>: pkg_hardcaml.dynlink
 <src/*.ml{,i,y}>: pkg_llvm
 <src/*.ml{,i,y}>: pkg_llvm.analysis
 <src/*.ml{,i,y}>: pkg_llvm.bitreader
 <src/*.ml{,i,y}>: pkg_llvm.bitwriter
 <src/*.ml{,i,y}>: pkg_llvm.executionengine
-"src/hcgetptr_stubs.c": pkg_hardcaml
+"src/hcgetptr_stubs.c": pkg_hardcaml.dynlink
 "src/hcgetptr_stubs.c": pkg_llvm
 "src/hcgetptr_stubs.c": pkg_llvm.analysis
 "src/hcgetptr_stubs.c": pkg_llvm.bitreader
 "src/hcgetptr_stubs.c": pkg_llvm.bitwriter
 "src/hcgetptr_stubs.c": pkg_llvm.executionengine
 # Executable test
-<test/test.{native,byte}>: pkg_hardcaml
 <test/test.{native,byte}>: pkg_hardcaml-waveterm.lterm
+<test/test.{native,byte}>: pkg_hardcaml.dynlink
 <test/test.{native,byte}>: pkg_llvm
 <test/test.{native,byte}>: pkg_llvm.analysis
 <test/test.{native,byte}>: pkg_llvm.bitreader
@@ -47,8 +47,8 @@ true: annot, bin_annot
 <test/test.{native,byte}>: use_HardCamlLlvmsim
 <test/test.{native,byte}>: custom
 # Executable test_mem
-<test/test_mem.{native,byte}>: pkg_hardcaml
 <test/test_mem.{native,byte}>: pkg_hardcaml-waveterm.lterm
+<test/test_mem.{native,byte}>: pkg_hardcaml.dynlink
 <test/test_mem.{native,byte}>: pkg_hardcaml.syntax
 <test/test_mem.{native,byte}>: pkg_llvm
 <test/test_mem.{native,byte}>: pkg_llvm.analysis
@@ -58,8 +58,8 @@ true: annot, bin_annot
 <test/test_mem.{native,byte}>: use_HardCamlLlvmsim
 <test/test_mem.{native,byte}>: custom
 # Executable test_fifo
-<test/test_fifo.{native,byte}>: pkg_hardcaml
 <test/test_fifo.{native,byte}>: pkg_hardcaml-waveterm.lterm
+<test/test_fifo.{native,byte}>: pkg_hardcaml.dynlink
 <test/test_fifo.{native,byte}>: pkg_hardcaml.syntax
 <test/test_fifo.{native,byte}>: pkg_llvm
 <test/test_fifo.{native,byte}>: pkg_llvm.analysis
@@ -67,8 +67,8 @@ true: annot, bin_annot
 <test/test_fifo.{native,byte}>: pkg_llvm.bitwriter
 <test/test_fifo.{native,byte}>: pkg_llvm.executionengine
 <test/test_fifo.{native,byte}>: use_HardCamlLlvmsim
-<test/*.ml{,i,y}>: pkg_hardcaml
 <test/*.ml{,i,y}>: pkg_hardcaml-waveterm.lterm
+<test/*.ml{,i,y}>: pkg_hardcaml.dynlink
 <test/*.ml{,i,y}>: pkg_hardcaml.syntax
 <test/*.ml{,i,y}>: pkg_llvm
 <test/*.ml{,i,y}>: pkg_llvm.analysis

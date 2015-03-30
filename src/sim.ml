@@ -301,7 +301,7 @@ struct
         in_ports
     in
     let update_out_ports () = 
-      List.iter (fun (s,(t,b,w)) -> t := B.of_bani_ptr w b !t) out_ports
+      List.iter (fun (s,(t,b,w)) -> t := B.of_bani_ptr w b (B.zero w)) out_ports
     in
 
     let sim_cycle_check = sim.sim_cycle_check in
@@ -345,4 +345,9 @@ module Gen(B : Bits_ext.S)(I : Interface.S)(O : Interface.S) = struct
         circuit, sim, inputs, outputs
 
 end
+
+(* install as sim provider *)
+
+let () = 
+  HardCamlDynlink.Sim_provider.(add_provider "hardcaml-llvmsim" (module Make : S))
 

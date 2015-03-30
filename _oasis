@@ -18,8 +18,8 @@ Library HardCamlLlvmsim
   Modules:       Utils, Globals, Info, Compile, Sim
   CSources:      hcgetptr_stubs.c
   CCOpt:         -O2 -Wall
-  BuildDepends:  hardcaml, llvm, llvm.executionengine, llvm.bitreader, llvm.bitwriter, llvm.analysis
-  XMETARequires: hardcaml, llvm, llvm.executionengine, llvm.bitreader, llvm.bitwriter, llvm.analysis
+  BuildDepends:  hardcaml.dynlink, llvm, llvm.executionengine, llvm.bitreader, llvm.bitwriter, llvm.analysis
+  XMETARequires: hardcaml.dynlink, llvm, llvm.executionengine, llvm.bitreader, llvm.bitwriter, llvm.analysis
 
 Flag testbenches
   Description: Build the testbenchs

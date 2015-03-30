@@ -1,9 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6513e9ba15db628116db311f2e43aeee)
+# DO NOT EDIT (digest: 7c6989f6da804e59e6d61678804586d0)
 version = "0.1"
 description = "HardCaml LLVM Cycle Accurate Simulator"
 requires =
-"hardcaml llvm llvm.executionengine llvm.bitreader llvm.bitwriter llvm.analysis"
+"hardcaml.dynlink llvm llvm.executionengine llvm.bitreader llvm.bitwriter llvm.analysis"
 archive(byte) = "HardCamlLlvmsim.cma"
 archive(byte, plugin) = "HardCamlLlvmsim.cma"
 archive(native) = "HardCamlLlvmsim.cmxa"
