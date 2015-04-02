@@ -163,7 +163,10 @@ let compile_comb modl gfn fn builder map signal =
     else 
       compile_generic_mux ()
   in*)
-  let compile_mux () = compile_simple_mux () in
+  let compile_mux () = 
+    if is_constant_mux () then compile_constant_mux ()
+    else compile_simple_mux () 
+  in
 
   let compile_mem () = 
     let map, rmem = load_signal gfn map signal in
