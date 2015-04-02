@@ -225,6 +225,7 @@ let make circuit =
     sim_internal_ports = [];
     sim_in_ports = in_ports;
     sim_out_ports = out_ports;
+    sim_out_ports_next = out_ports;
     sim_cycle_check = (fun () -> ());
     sim_cycle_comb0;
     sim_cycle_seq;
@@ -266,6 +267,7 @@ let load path =
     sim_internal_ports = [];
     sim_in_ports = in_ports;
     sim_out_ports = out_ports;
+    sim_out_ports_next = out_ports;
     sim_cycle_check = (fun () -> ());
     sim_cycle_comb0;
     sim_cycle_seq;
@@ -288,6 +290,9 @@ struct
     let out_ports = List.map (fun (s,d) -> 
       let d,w = fst !d, snd !d in s, (ref (B.zero w), d, w)) sim.sim_out_ports 
     in
+    let out_ports_next = List.map (fun (s,d) -> 
+      let d,w = fst !d, snd !d in s, (ref (B.zero w), d, w)) sim.sim_out_ports 
+    in
     
     let update_in_ports () = 
       List.iter 
@@ -300,20 +305,21 @@ struct
             B.to_bani_ptr !t b)
         in_ports
     in
-    let update_out_ports () = 
+    let update_out_ports out_ports = 
       List.iter (fun (s,(t,b,w)) -> t := B.of_bani_ptr w b (B.zero w)) out_ports
     in
 
     let sim_cycle_check = sim.sim_cycle_check in
-    let sim_cycle_comb0 () = update_in_ports (); sim.sim_cycle_comb0 (); update_out_ports () in
+    let sim_cycle_comb0 () = update_in_ports (); sim.sim_cycle_comb0 (); update_out_ports out_ports in
     let sim_cycle_seq = sim.sim_cycle_seq in
-    let sim_cycle_comb1 () = sim.sim_cycle_comb1(); update_out_ports () in
+    let sim_cycle_comb1 () = sim.sim_cycle_comb1(); update_out_ports out_ports_next in
     let sim_reset () = (*update_in_ports ();*) sim.sim_reset (); (*update_out_ports ()*) in
 
     {
       sim_internal_ports = [];
       sim_in_ports = List.map (fun (s,(t,b,w)) -> s,t) in_ports;
       sim_out_ports = List.map (fun (s,(t,b,w)) -> s,t) out_ports;
+      sim_out_ports_next = List.map (fun (s,(t,b,w)) -> s,t) out_ports_next;
       sim_cycle_check;
       sim_cycle_comb0;
       sim_cycle_seq;
