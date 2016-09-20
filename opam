@@ -10,6 +10,6 @@ remove: [
 ]
 depends: [
   "hardcaml"
-  "llvm" {>="3.4"}
+  "llvm" {="3.6"}
 ]
 ocaml-version: [ >= "4.02.0" ]
