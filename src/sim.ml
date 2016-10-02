@@ -278,7 +278,7 @@ let load path =
     sim_reset;
     sim_lookup_signal = (fun uid -> failwith "sim_lookup_signal not implemented");
     sim_lookup_reg = (fun uid -> failwith "sim_lookup_reg not implemented");
-    sim_lookup_memory = (fun uid addr -> failwith "sim_lookup_memory not implemented");
+    sim_lookup_memory = (fun uid -> failwith "sim_lookup_memory not implemented");
   }
 
 module Make(B : Bits_ext.S) =
@@ -333,7 +333,7 @@ struct
       sim_reset;
       sim_lookup_signal = (fun uid -> failwith "sim_lookup_signal not implemented");
       sim_lookup_reg = (fun uid -> failwith "sim_lookup_reg not implemented");
-      sim_lookup_memory = (fun uid addr -> failwith "sim_lookup_memory not implemented");
+      sim_lookup_memory = (fun uid -> failwith "sim_lookup_memory not implemented");
     }
 
   let make circuit = wrap (make circuit)
