@@ -32,7 +32,7 @@ Executable test
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       hardcaml-llvmsim, hardcaml-waveterm.lterm
+  BuildDepends:       hardcaml-llvmsim, hardcaml-waveterm
 
 Executable test_mem
   Build$:             flag(testbenches)
@@ -41,7 +41,7 @@ Executable test_mem
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       hardcaml.syntax, hardcaml-llvmsim, hardcaml-waveterm.lterm
+  BuildDepends:       hardcaml.syntax, hardcaml-llvmsim, hardcaml-waveterm
 
 Executable test_fifo
   Build$:             flag(testbenches)
@@ -50,7 +50,7 @@ Executable test_fifo
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       hardcaml.syntax, hardcaml-llvmsim, hardcaml-waveterm.lterm
+  BuildDepends:       hardcaml.syntax, hardcaml-llvmsim, hardcaml-waveterm
 
 SourceRepository master
   Type:     git

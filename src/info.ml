@@ -3,10 +3,10 @@ open Utils
 open Globals
 module Sc = HardCaml.Signal.Comb
 module St = HardCaml.Signal.Types
-module Ee = Llvm_executionengine.ExecutionEngine
-module Gv = Llvm_executionengine.GenericValue
+module Ee = Llvm_executionengine
+(*module Gv = Llvm_executionengine.GenericValue*)
 
-let _ = ignore (Llvm_executionengine.initialize_native_target ())
+let _ = ignore (Ee.initialize())
 
 let compile_info modl name (ret,retz) args f values = 
   make_function modl name ret args
@@ -56,27 +56,19 @@ let compile_ptr get_global modl io signals =
        p2i
     ) globals
 
-(* converts a nativeint (as queried from the simulation module) to a
- * bigarray *)
-external llvm_get_ptr : nativeint -> int -> HardCaml.Bits_ext.Utils_ext.bani =
+(* converts a nativeint (as queried from the simulation module) to a bigarray *)
+external llvm_get_ptr : nativeint -> int -> HardCaml.Bits.Ext.Utils_ext.bani =
   "llvmsim_get_ptr"
-
-(* find a function in the JIT, or raise an exception *)
-let lookup_function name jit = 
-  match Ee.find_function name jit with
-  | Some(x) -> x
-  | None -> failwith ("Couldn't find function " ^ name ^ " in JIT")
 
 (* look up the circuit ports *)
 let query_ports io jit =
-  (* find the functions in the module *)
-  let width = lookup_function ("width_" ^ io) jit in
-  let name = lookup_function ("name_" ^ io) jit in
-  let ptr = lookup_function ("ptr_" ^ io) jit in
-  (* wrap so they can be called *)
-  let width n = Gv.as_int (Ee.run_function width [| Gv.of_int int32 n |] jit) in
-  let name n m = Gv.as_int (Ee.run_function name 
-                              [| Gv.of_int int32 n; Gv.of_int int32 m |] jit) in
+  let open Ctypes in
+  let open PosixTypes in
+  let open Foreign in
+  let width = Ee.get_function_address ("width_" ^ io) (funptr (int @-> returning int)) jit in
+  let name = Ee.get_function_address ("name_" ^ io) (funptr (int @-> int @-> returning int8_t)) jit in
+  let ptr = Ee.get_function_address ("ptr_" ^ io) (funptr (int @-> returning nativeint)) jit in
+
   let name n = 
     let rec b n m str =
       let x = name n m in
@@ -85,12 +77,13 @@ let query_ports io jit =
     in
     b n 0 ""
   in
-  let ptr n = Gv.as_nativeint (Ee.run_function ptr [| Gv.of_int int32 n |] jit) in
   (* look up each port *)
   let rec lookup n = 
-    let width,name,ptr = width n, name n, ptr n in
+    let name = name n in
     if name = "" then []
-    else (name, ref (llvm_get_ptr ptr width, width)) :: lookup (n+1)
+    else 
+      let width, ptr = width n, ptr n in
+      (name, ref (llvm_get_ptr ptr width, width)) :: lookup (n+1)
   in
   List.rev (lookup 0)
 

@@ -8,12 +8,11 @@ module Sc = Signal.Comb
 module St = Signal.Types
 module Cs = Cyclesim
 
-module Ee = Llvm_executionengine.ExecutionEngine
-module Gv = Llvm_executionengine.GenericValue
+module Ee = Llvm_executionengine
 
 let debug = false
 
-type cyclesim = Bits_ext.Comb.BigarraybitsNativeint.t Cyclesim.Api.cyclesim
+type cyclesim = Bits.Ext.Comb.BigarraybitsNativeint.t Cyclesim.Api.cyclesim
 
 let reset_value = function
   | Signal_reg(_,r) ->
@@ -200,7 +199,7 @@ let compile max circuit =
 
   make_function modl "sim_reset" void [||] (compile_reg_reset gfn regs) |> ignore;
 
-  (* dump_module modl; *)
+  (*Llvm.dump_module modl;*)
   modl
 
 let compile' = compile 50
@@ -209,11 +208,12 @@ let make circuit =
   let modl = compile' circuit in
   (*let mp = ModuleProvider.create modl in
     let jit = Ee.create_jit mp in*)
-  let optlevel = 2 in
-  let jit = Ee.create_jit modl optlevel in
+  let opt_level = 2 in
+  let jit = Ee.create ~options:Ee.{ default_compiler_options with opt_level } modl in
   let mk name = 
-    let f = Info.lookup_function name jit in
-    (fun () -> Ee.run_function f [||] jit |> ignore) 
+    let open Ctypes in
+    let open Foreign in
+    Ee.get_function_address name (funptr (void @-> returning void)) jit
   in
   let sim_cycle_comb0 = mk "sim_cycle_comb0" in 
   let sim_cycle_seq = mk "sim_cycle_seq" in 
@@ -244,27 +244,30 @@ let write path circuit =
     failwith "Failed to write bitcode"
 
 let load path = 
-  let name = Bits_ext.Utils_ext.filebase path in
+  let name = 
+    let filename = Filename.basename path in
+    try Filename.chop_extension filename with _ -> filename 
+  in
+
   let context = global_context () in
   let membuf = Llvm.MemoryBuffer.of_file path in
   let modl = Llvm_bitreader.parse_bitcode context membuf in
   (* let mp = ModuleProvider.create modl in
      let jit = Ee.create_jit mp in *)
-  let optlevel = 2 in
-  let jit = Ee.create_jit modl optlevel in
-  (* need to get the circuit information from the bit code *)
-  let sim_cycle_comb0 = Info.lookup_function ("sim_cycle_comb0") jit in
-  let sim_cycle_seq = Info.lookup_function ("sim_cycle_seq") jit in
-  let sim_cycle_comb1 = Info.lookup_function ("sim_cycle_comb1") jit in
-  let sim_reset = Info.lookup_function ("reset_" ^ name) jit in
+  let opt_level = 2 in
+  let jit = Ee.create ~options:Ee.{ default_compiler_options with opt_level } modl in
 
+  let mk name = 
+    let open Ctypes in
+    let open Foreign in
+    Ee.get_function_address name (funptr (void @-> returning void)) jit
+  in
+  let sim_cycle_comb0 = mk "sim_cycle_comb0" in 
+  let sim_cycle_seq = mk "sim_cycle_seq" in 
+  let sim_cycle_comb1 = mk "sim_cycle_comb1" in 
+  let sim_reset = mk "sim_reset" in
   let in_ports = Info.query_ports "i" jit in
   let out_ports = Info.query_ports "o" jit in
-
-  let sim_cycle_comb0 = (fun () -> ignore (Ee.run_function sim_cycle_comb0 [||] jit)) in
-  let sim_cycle_seq = (fun () -> ignore (Ee.run_function sim_cycle_seq [||] jit)) in
-  let sim_cycle_comb1 = (fun () -> ignore (Ee.run_function sim_cycle_comb1 [||] jit)) in
-  let sim_reset = (fun () -> ignore (Ee.run_function sim_reset [||] jit)) in
 
   {
     sim_internal_ports = [];
@@ -281,7 +284,7 @@ let load path =
     sim_lookup_memory = (fun uid -> failwith "sim_lookup_memory not implemented");
   }
 
-module Make(B : Bits_ext.S) =
+module Make(B : Bits.Ext.Comb.S) =
 struct
 
   type t = B.t
@@ -344,7 +347,7 @@ struct
 
 end
 
-module Gen(B : Bits_ext.S)(I : Interface.S)(O : Interface.S) = struct
+module Gen(B : Bits.Ext.Comb.S)(I : Interface.S)(O : Interface.S) = struct
 
     module S = Make(B)
     module Cs = Cyclesim.Api
