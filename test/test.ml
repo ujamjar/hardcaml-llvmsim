@@ -33,7 +33,7 @@ module Test = struct
     }
 end
 
-module B = Bits_ext.Comb.IntbitsList
+module B = Bits.Ext.Comb.IntbitsList
 module S = Cyclesim.Api
 
 module Cl = HardCamlLlvmsim.Sim.Gen(B)(Test.I)(Test.O)
@@ -42,13 +42,13 @@ module Cs' = HardCaml.Cyclesim.Make(B)
 
 module Waveterm_waves = HardCamlWaveTerm.Wave.Make(HardCamlWaveTerm.Wave.Bits(B))
 module Waveterm_sim = HardCamlWaveTerm.Sim.Make(B)(Waveterm_waves)
-module Waveterm_ui = HardCamlWaveLTerm.Ui.Make(B)(Waveterm_waves)
+module Waveterm_ui = HardCamlWaveTerm.Ui.Make(B)(Waveterm_waves)
 
 let sim_llvm () = Cl.make "test_llvm" Test.f
-let sim_cs () = Cs.make "test_cs" Test.f
+let sim_cs () = let c,s,i,o,_ = Cs.make "test_cs" Test.f in c,s,i,o
 let sim_combine () = 
   let c,s,i,o = Cl.make "test_llvm" Test.f in
-  let c,s',_,_ = Cs.make "test_cs" Test.f in
+  let c,s',_,_,_ = Cs.make "test_cs" Test.f in
   c, Cs'.combine_strict s s', i, o
 
 (* llvmsim test *)

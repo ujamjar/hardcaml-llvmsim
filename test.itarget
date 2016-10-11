@@ -1,0 +1,7 @@
+test/test.native
+test/test_mem.native
+test/test_fifo.native
+test/test.byte
+test/test_mem.byte
+test/test_fifo.byte
+

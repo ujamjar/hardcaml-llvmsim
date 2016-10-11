@@ -1,0 +1,7 @@
+#camlp4o;;
+#require "llvm,llvm.executionengine,llvm.bitreader,llvm.bitwriter,llvm.analysis";;
+#require "hardcaml,hardcaml.dynlink,hardcaml.syntax";;
+#directory "_build/src";;
+#load "HardCamlLlvmsim.cma";;
+
+open HardCaml.Api;;

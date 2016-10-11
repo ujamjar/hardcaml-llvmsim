@@ -18,19 +18,19 @@ let sim = Sim.make circuit
 The LLVM based simulator is constructed with;
 
 ```
-module Bits = HardCaml.Bits_ext.Comb.IntbitsList
+module Bits = HardCaml.Bits.Ext.Comb.IntbitsList
 module Sim = HardCamlLlvmsim.Sim.Make(Bits)
 let sim = Sim.make circuit
 ```
 
 The resulting types of `sim` are the same so testbenchs remain the same.
 
-The interface module (Bits) must come from `HardCaml.Bits_ext` - these are a 
+The interface module (Bits) must come from `HardCaml.Bits.Ext` - these are a 
 strict extension of `HardCaml.Bits` and are compatible so we can still `combine`
 simulators
 
 ```
-module Bits = HardCaml.Bits_ext.Comb.IntbitsList
+module Bits = HardCaml.Bits.Ext.Comb.IntbitsList
 module Sim1 = HardCaml.Cyclesim.Make(Bits)
 module Sim2 = HardCamlLlvmsim.Sim.Make(Bits)
 let sim1 = Sim1.make circuit

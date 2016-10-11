@@ -19,7 +19,7 @@ module Fifo = struct
     O.{ q }
 end
 
-module B = Bits_ext.Comb.IntbitsList
+module B = Bits.Ext.Comb.IntbitsList
 module S = Cyclesim.Api
 module Cl = HardCamlLlvmsim.Sim.Gen(B)(Fifo.I)(Fifo.O)
 module Cs = HardCaml.Interface.Gen(B)(Fifo.I)(Fifo.O)
@@ -27,12 +27,12 @@ module Cs' = HardCaml.Cyclesim.Make(B)
 
 module Waveterm_waves = HardCamlWaveTerm.Wave.Make(HardCamlWaveTerm.Wave.Bits(B))
 module Waveterm_sim = HardCamlWaveTerm.Sim.Make(B)(Waveterm_waves)
-module Waveterm_ui = HardCamlWaveLTerm.Ui.Make(B)(Waveterm_waves)
+module Waveterm_ui = HardCamlWaveTerm.Ui.Make(B)(Waveterm_waves)
 
 let test = 
   let circuit,sim,i,o = Cl.make "test_fifo_llvm" Fifo.f in
   HardCamlLlvmsim.Sim.write "" circuit;
-  let _,sim',_,_ = Cs.make "test_fifo_cs" Fifo.f in
+  let _,sim',_,_,_ = Cs.make "test_fifo_cs" Fifo.f in
   let sim = Cs'.combine_strict sim sim' in
   let sim, waves = Waveterm_sim.wrap sim in
 

@@ -1,12 +1,12 @@
 (* test the memory implementation *)
 
 open HardCaml
-module B = Bits_ext.Comb.IntbitsList
+module B = Bits.Ext.Comb.IntbitsList
 module S = Cyclesim.Api
 
 module Waveterm_waves = HardCamlWaveTerm.Wave.Make(HardCamlWaveTerm.Wave.Bits(B))
 module Waveterm_sim = HardCamlWaveTerm.Sim.Make(B)(Waveterm_waves)
-module Waveterm_ui = HardCamlWaveLTerm.Ui.Make(B)(Waveterm_waves)
+module Waveterm_ui = HardCamlWaveTerm.Ui.Make(B)(Waveterm_waves)
 
 open HardCaml.Signal.Comb 
 open HardCaml.Signal.Seq 
@@ -52,7 +52,7 @@ module N = HardCamlLlvmsim.Sim.Gen(B)(M.I)(M.O)
 module N2 = HardCaml.Interface.Gen(B)(M.I)(M.O)
 
 let test = 
-  let circuit,sim,i,o = N2.make "test_mem" M.f in
+  let circuit,sim,i,o,_ = N2.make "test_mem" M.f in
   let sim, waves = Waveterm_sim.wrap sim in
   HardCamlLlvmsim.Sim.write "" circuit;
 
