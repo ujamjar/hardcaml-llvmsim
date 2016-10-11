@@ -3,6 +3,9 @@ maintainer: "andy.ray@ujamjar.com"
 homepage: "https://github.com/ujamjar/hardcaml-llvmsim"
 build: [ [ "ocaml" "pkg/pkg.ml" "build" ] ]
 depends: [
+  "ocamlfind" {build}
+  "ocamlbuild" {build}
+  "topkg" {build}
   "hardcaml"
   "ctypes"
   "ctypes-foreign"
