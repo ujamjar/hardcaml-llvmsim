@@ -56,10 +56,6 @@ let compile_ptr get_global modl io signals =
        p2i
     ) globals
 
-(* converts a nativeint (as queried from the simulation module) to a bigarray *)
-external llvm_get_ptr : nativeint -> int -> HardCaml.Bits.Ext.Utils_ext.bani =
-  "llvmsim_get_ptr"
-
 (* look up the circuit ports *)
 let query_ports io jit =
   let open Ctypes in
@@ -67,7 +63,12 @@ let query_ports io jit =
   let open Foreign in
   let width = Ee.get_function_address ("width_" ^ io) (funptr (int @-> returning int)) jit in
   let name = Ee.get_function_address ("name_" ^ io) (funptr (int @-> int @-> returning int8_t)) jit in
-  let ptr = Ee.get_function_address ("ptr_" ^ io) (funptr (int @-> returning nativeint)) jit in
+
+  let ptr n width = 
+    let ptr = Ee.get_function_address ("ptr_" ^ io) (funptr (int @-> returning (ptr nativeint))) jit in
+    let size = (width + Sys.int_size) / (Sys.int_size+1) in
+    bigarray_of_ptr array1 size Bigarray.nativeint (ptr n)
+  in
 
   let name n = 
     let rec b n m str =
@@ -82,8 +83,9 @@ let query_ports io jit =
     let name = name n in
     if name = "" then []
     else 
-      let width, ptr = width n, ptr n in
-      (name, ref (llvm_get_ptr ptr width, width)) :: lookup (n+1)
+      let width = width n in
+      let ptr = ptr n width in
+      (name, ref (ptr, width)) :: lookup (n+1)
   in
   List.rev (lookup 0)
 

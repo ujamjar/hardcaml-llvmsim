@@ -13,9 +13,5 @@ val compile_name : Llvm.llmodule -> string -> St.signal list -> unit
 
 val compile_ptr : (int -> St.signal -> Globals.global) -> Llvm.llmodule -> string -> Sc.t list -> unit
 
-external llvm_get_ptr : nativeint -> int -> HardCaml.Bits.Ext.Utils_ext.bani = "llvmsim_get_ptr"
-
-(*val lookup_function : string -> Ee.llexecutionengine -> Llvm.llvalue*)
-
 val query_ports : string ->
   Ee.llexecutionengine -> (string * (HardCaml.Bits.Ext.Utils_ext.bani * int) ref) list
