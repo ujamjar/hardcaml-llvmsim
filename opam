@@ -10,6 +10,8 @@ remove: [
 ]
 depends: [
   "hardcaml"
-  "llvm" {="3.5"}
+  "ctypes"
+  "ctype-foreign"
+  "llvm" {>="3.8"}
 ]
 ocaml-version: [ >= "4.02.0" ]
