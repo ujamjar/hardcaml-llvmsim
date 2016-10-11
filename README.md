@@ -1,5 +1,7 @@
 # Overview
 
+[![Build Status](https://travis-ci.org/ujamjar/hardcaml-llvmsim.svg?branch=master)](https://travis-ci.org/ujamjar/hardcaml-llvmsim)
+
 Compiles a circuit to a high speed, native code, cycle accurate simulation model
 using LLVM.
 
