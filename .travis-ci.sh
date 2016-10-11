@@ -15,14 +15,18 @@ case "$OCAML_VERSION,$OPAM_VERSION" in
 4.02.3,1.2.0) ppa=avsm/ocaml42+opam12 ;;
 *) echo Unknown $OCAML_VERSION,$OPAM_VERSION; exit 1 ;;
 esac
-	 
+
+echo "yes" | sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+
 wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/precise/ llvm-toolchain-precise-3.8 main"
 sudo apt-get update -qq
 
 echo "yes" | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
+
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam #llvm-3.8-dev
+
 export OPAMYES=1
 opam init 
 
