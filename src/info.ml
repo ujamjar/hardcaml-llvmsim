@@ -66,7 +66,7 @@ let query_ports io jit =
 
   let ptr n width = 
     let ptr = Ee.get_function_address ("ptr_" ^ io) (funptr (int @-> returning (ptr nativeint))) jit in
-    let size = (width + Sys.int_size) / (Sys.int_size+1) in
+    let size = (width + Sys.word_size - 1) / Sys.word_size in
     bigarray_of_ptr array1 size Bigarray.nativeint (ptr n)
   in
 
