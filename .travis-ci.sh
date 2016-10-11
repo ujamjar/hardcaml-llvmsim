@@ -17,7 +17,7 @@ case "$OCAML_VERSION,$OPAM_VERSION" in
 esac
 	 
 wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
-sudo echo deb http://apt.llvm.org/precise/ llvm-toolchain-precise-3.8 main >> /etc/apt/sources.list
+sudo add-apt-repository "deb http://apt.llvm.org/precise/ llvm-toolchain-precise-3.8 main"
 
 echo "yes" | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
