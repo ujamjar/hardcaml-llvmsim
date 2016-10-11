@@ -25,6 +25,7 @@ sudo apt-get update -qq
 echo "yes" | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
 
+sudo apt-get install -y --force-yes llvm-3.8-dev
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam #llvm-3.8-dev
 
 export OPAMYES=1
