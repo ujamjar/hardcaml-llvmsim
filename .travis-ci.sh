@@ -18,10 +18,11 @@ esac
 	 
 wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/precise/ llvm-toolchain-precise-3.8 main"
+sudo apt-get update -qq
 
 echo "yes" | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
-sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam llvm-3.8-dev
+sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam #llvm-3.8-dev
 export OPAMYES=1
 opam init 
 
