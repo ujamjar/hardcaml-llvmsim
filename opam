@@ -1,6 +1,9 @@
-opam-version: "1.1"
+opam-version: "1.2"
 maintainer: "andy.ray@ujamjar.com"
+authors: "andy.ray@ujamjar.com"
 homepage: "https://github.com/ujamjar/hardcaml-llvmsim"
+dev-repo: "https://github.com/ujamjar/hardcaml-llvmsim"
+bug-reports: "https://github.com/ujamjar/hardcaml-llvmsim/issues"
 build: [ [ "ocaml" "pkg/pkg.ml" "build" ] ]
 depends: [
   "ocamlfind" {build}
@@ -11,4 +14,4 @@ depends: [
   "ctypes-foreign"
   "llvm" {>="3.8"}
 ]
-ocaml-version: [ >= "4.02.0" ]
+available: [ "ocaml-version" >= "4.02.0" ]
