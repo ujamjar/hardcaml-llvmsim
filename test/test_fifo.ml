@@ -8,8 +8,12 @@ end)
 module Fifo = struct
   open Signal.Comb
   let bits = 4
-  module I = interface clear[1] wr[1] d[bits] rd[1] end
-  module O = interface q[bits] end
+  module I = struct
+type 'a t = { clear : 'a[@bits 1]; wr : 'a[@bits 1]; d : 'a[@bits bits]; rd : 'a[@bits 1]; }[@@deriving hardcaml]
+end
+  module O = struct
+type 'a t = { q : 'a[@bits bits]; }[@@deriving hardcaml]
+end
   let f i =
     let open I in
     let size = 1 lsl bits in

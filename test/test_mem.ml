@@ -17,15 +17,23 @@ module type MemParams = sig
 end
 
 module Mem(M : MemParams) = struct
-  module I = interface d[M.dbits] r[M.abits] w[M.abits] we[1] end
-  module O = interface q[M.dbits] end
+  module I = struct
+type 'a t = { d : 'a[@bits M.dbits]; r : 'a[@bits M.abits]; w : 'a[@bits M.abits]; we : 'a[@bits 1]; }[@@deriving hardcaml]
+end
+  module O = struct
+type 'a t = { q : 'a[@bits M.dbits]; }[@@deriving hardcaml]
+end
   let f i = O.({ q = I.(memory ~size:(1 lsl M.abits) ~spec:r_none ~we:i.we ~w:i.w ~d:i.d ~r:i.r) })
 end
 
 module Mem2(M : MemParams) = struct
   module X = Mem(M) 
-  module I = interface (r:X.I) we2[1] end
-  module O = interface q1[M.dbits] q2[M.dbits] end
+  module I = struct
+type 'a t = { r: 'a X.I.t; we2 : 'a[@bits 1]; }[@@deriving hardcaml]
+end
+  module O = struct
+type 'a t = { q1 : 'a[@bits M.dbits]; q2 : 'a[@bits M.dbits]; }[@@deriving hardcaml]
+end
   let f i = 
     let open X.I in
     let open I in

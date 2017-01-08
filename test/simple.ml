@@ -1,5 +1,9 @@
-module I = interface a[8] b[8] end
-module O = interface c[9] end
+module I = struct
+  type 'a t = { a : 'a[@bits 8]; b : 'a[@bits 8]; }[@@deriving hardcaml]
+end
+module O = struct
+  type 'a t = { c : 'a[@bits 9]; }[@@deriving hardcaml]
+end
 let f i = O.{ c = I.(Comb.(ue i.a +: ue i.b)) }
 
 module B = HardCaml.Bits.Ext.Comb.BigarraybitsNativeint

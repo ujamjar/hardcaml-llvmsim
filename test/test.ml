@@ -7,12 +7,16 @@ end)
 
 module Test = struct
   open Signal.Comb
-  module I = interface a[8] b[8] sel[1] end
-  module O = interface
-    add[8] sub[8] mux[8] select[4] concat[16]
-    mul[16] lt[1] and_[8] or_[8] xor_[8] not_[8]
-    reg[8] pipe[8] counter[4]
-  end
+  module I = struct
+type 'a t = { a : 'a[@bits 8]; b : 'a[@bits 8]; sel : 'a[@bits 1]; }[@@deriving hardcaml]
+end
+  module O = struct
+type 'a t = {
+    add : 'a[@bits 8]; sub : 'a[@bits 8]; mux : 'a[@bits 8]; select : 'a[@bits 4]; concat : 'a[@bits 16];
+    mul : 'a[@bits 16]; lt : 'a[@bits 1]; and_ : 'a[@bits 8]; or_ : 'a[@bits 8]; xor_ : 'a[@bits 8]; not_ : 'a[@bits 8];
+    reg : 'a[@bits 8]; pipe : 'a[@bits 8]; counter : 'a[@bits 4];
+  }[@@deriving hardcaml]
+end
   let f i = 
     let open I in
     O.{
