@@ -15,3 +15,7 @@ depends: [
   "llvm" {>="3.8"}
 ]
 available: [ ocaml-version >= "4.02.0" ]
+name: "hardcaml-llvmsim"
+version: "0.3.2"
+license: "ISC"
+substs:[ "pkg/META" ]
