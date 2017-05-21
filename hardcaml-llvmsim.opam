@@ -7,8 +7,7 @@ bug-reports: "https://github.com/ujamjar/hardcaml-llvmsim/issues"
 build: [ [ "ocaml" "pkg/pkg.ml" "build" ] ]
 depends: [
   "ocamlfind" {build}
-  "ocamlbuild" {build}
-  "topkg" {build}
+  "jbuilder" {build & >= "1.0+beta8"}
   "hardcaml" { >= "1.2.0" & < "2.0.0" }
   "ctypes"
   "ctypes-foreign"
@@ -16,6 +15,6 @@ depends: [
 ]
 available: [ ocaml-version >= "4.02.0" ]
 name: "hardcaml-llvmsim"
-version: "0.3.2"
+version: "0.4.0"
 license: "ISC"
 substs:[ "pkg/META" ]

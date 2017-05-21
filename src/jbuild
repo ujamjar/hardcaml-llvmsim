@@ -1,0 +1,7 @@
+(jbuild_version 1)
+
+(library
+ ((name HardCamlLlvmsim)
+  (public_name hardcaml-llvmsim)
+  (libraries (hardcaml llvm llvm.executionengine llvm.bitreader llvm.bitwriter llvm.analysis))))
+
