@@ -12,7 +12,7 @@ depends: [
   "hardcaml" { >= "1.2.0" & < "2.0.0" }
   "ctypes"
   "ctypes-foreign"
-  "llvm" {>="3.8"}
+  "llvm" {>="3.8" & <="3.9"}
 ]
 available: [ ocaml-version >= "4.02.0" ]
 name: "hardcaml-llvmsim"
