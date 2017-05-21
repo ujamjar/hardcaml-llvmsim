@@ -17,4 +17,3 @@ available: [ ocaml-version >= "4.02.0" ]
 name: "hardcaml-llvmsim"
 version: "0.4.0"
 license: "ISC"
-substs:[ "pkg/META" ]
