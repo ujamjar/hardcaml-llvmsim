@@ -244,10 +244,10 @@ let write path circuit =
     failwith "Failed to write bitcode"
 
 let load path = 
-  let name = 
+  (*let name = 
     let filename = Filename.basename path in
     try Filename.chop_extension filename with _ -> filename 
-  in
+  in*)
 
   let context = global_context () in
   let membuf = Llvm.MemoryBuffer.of_file path in
@@ -367,5 +367,5 @@ end
 (* install as sim provider *)
 
 let () = 
-  HardCamlDynlink.Sim_provider.(add_provider "hardcaml-llvmsim" (module Make : S))
+  Sim_provider.(add_provider "hardcaml-llvmsim" (module Make : S))
 

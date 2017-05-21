@@ -64,7 +64,7 @@ let compile_comb modl gfn fn builder map signal =
   in
 
   (* build a select table and jump targets for the mux *)
-  let compile_generic_mux () = 
+  (*let compile_generic_mux () = 
     let name = name "gmux" in
     let entry_bb () = builder_at 
         (global_context()) (instr_begin (entry_block fn)) in
@@ -94,7 +94,7 @@ let compile_comb modl gfn fn builder map signal =
     make_switch (Sc.width signal) dep case_bbs builder;
     position_at_end end_bb builder;
     add_signal (build_load r name builder) map
-  in
+  in*)
 
   (* a simple mux is one with only a few cases, and is implemented as
    * a chain of 'select' statements.  Not actually sure this is

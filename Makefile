@@ -3,14 +3,13 @@
 all: build
 
 build:
-	cp pkg/META.in pkg/META
-	ocaml pkg/pkg.ml build
+	jbuilder build @install
 
 test:
 	ocamlbuild test.otarget
 
 clean:
-	ocaml pkg/pkg.ml clean
+	rm -fr _build
 	find . -name "*~" | xargs rm -f
 	rm -f *.bc *.ll
 

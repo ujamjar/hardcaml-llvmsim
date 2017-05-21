@@ -1,0 +1,5 @@
+(jbuild_version 1)
+
+(alias
+ ((name test)
+  (deps (test/test.exe test/test_mem.exe test/test_fifo.exe))))

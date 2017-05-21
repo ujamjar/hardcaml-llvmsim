@@ -1,8 +1,0 @@
-version = "%{version}%"
-description = "HardCaml LLVM Cycle Accurate Simulator"
-requires = "hardcaml.dynlink llvm llvm.executionengine llvm.bitreader llvm.bitwriter llvm.analysis"
-archive(byte) = "HardCamlLlvmsim.cma"
-archive(byte, plugin) = "HardCamlLlvmsim.cma"
-archive(native) = "HardCamlLlvmsim.cmxa"
-archive(native, plugin) = "HardCamlLlvmsim.cmxs"
-exists_if = "HardCamlLlvmsim.cma"

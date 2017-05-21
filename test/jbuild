@@ -1,0 +1,6 @@
+(jbuild_version 1)
+
+(executables
+ ((names (test test_mem test_fifo))
+  (libraries (hardcaml-llvmsim hardcaml-waveterm))
+  (preprocess (pps (ppx_deriving_omp ppx_deriving_hardcaml)))))

@@ -1,7 +1,0 @@
-<src/*>: package(hardcaml), package(hardcaml.dynlink), package(llvm), package(llvm.executionengine), package(llvm.bitreader), package(llvm.bitwriter), package(llvm.analysis)
-<src/*.cmx> and not "src/HardCamlLlvmsim.cmx": for-pack(HardCamlLlvmsim)
-
-"src": include
-<test/*>: package(ppx_deriving_hardcaml), package(hardcaml-waveterm)
-<test/*>: package(hardcaml), package(hardcaml.dynlink), package(llvm), package(llvm.executionengine), package(llvm.bitreader), package(llvm.bitwriter), package(llvm.analysis)
-
